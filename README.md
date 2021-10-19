@@ -1,23 +1,19 @@
-# RAP2-DELOS 开源社区版本 (后端 API 服务器)
+# RAP-Server 开源社区版本 (后端 API 服务器)
 
-> 阿里妈妈 THX 团队新项目 GoGoCode：https://github.com/thx/gogocode 给批量修改项目代码减轻痛苦！
+### Intro 介绍
 
-RAP2 是在 RAP1 基础上重做的新项目，它能给你提供方便的接口文档管理、Mock、导出等功能，包含两个组件(对应两个 Github Repository)。
+RAP is a new project based on [RAP1](https://github.com/thx/RAP) & [RAP2](https://github.com/thx/rap2-delos). It has two components:
+RAP是在RAP1 & RAP2基础上重做的新项目，它包含两个组件(对应两个Github Repository)。
 
-- rap2-delos: 后端数据 API 服务器，基于 Koa + MySQL[link](http://github.com/thx/rap2-delos)
-- rap2-dolores: 前端静态资源，基于 React [link](http://github.com/thx/rap2-dolores)
+* rap-server: back-end data API server based on Koa + MySQL [link](https://github.com/infra-fe/rap-client)
+* rap-client: front-end static build based on React [link](https://github.com/infra-fe/rap-server)
 
+* rap-server:使用Koa + MySQL的后端API服务器 [link](https://github.com/infra-fe/rap-client)
+* rap-client: React前端App [link](https://github.com/infra-fe/rap-server)
 
-**Rap 官方服务站点，无需安装直接体验: [rap2.taobao.org](http://rap2.taobao.org)**
+### Support 客户支持
 
-注意：本工具为开发工具，相关API未做任何XSS等安全验证，请勿在生产环境依赖RAP的任何服务！！！
-
-**有急事来官方钉钉群，响应更迅速: 31626736 (二群，一群已满）**
-
-2019-10-31：现已支持 Docker 一键部署，欢迎大家体验&反馈
-
-2019-09-27：更新的用户请注意按照下面指引安装 pandoc 以启用文档导出功能
-
+<img src="https://user-images.githubusercontent.com/1892986/137831764-8b9f52a9-040f-4867-ad1e-a7e9c7eb9a83.jpg" alt="wechat support" width=200 />
 
 ## 推荐使用 Docker 快速部署
 
@@ -165,43 +161,27 @@ npm start
 - [rap2-javabean 自动从 Rap 接口生成 Java Bean](https://github.com/IndiraFinish/rap2-javabean)
 - [rap2-generator 把 Java Bean 生成到 Rap](https://github.com/kings1990/rap2-generator)
 
-## Author
+## Author 作者
 
-- 版权: 阿里妈妈前端团队
-- 作者:
-  - RAP2 2017/10 前版本作者为[墨智(@Nuysoft)](https://github.com/nuysoft/), [mockjs](mockjs.com)的作者。
-  - 2017/10 之后版本开发者
-    - [霍雍(Bosn)](http://github.com/bosn/)，[RAP1](http://github.com/thx/RAP)作者，RAP 最早的创始人。
-    - [承虎(alvarto)](http://github.com/alvarto/)
-    - [池冰(bigfengyu)](https://github.com/bigfengyu)
+* Owner: Shopee Infra FE Team
+* Contributers: [link](https://github.com/infra-fe/rap-client/graphs/contributors)
 
-### Tech Arch
+* 所有人: Shopee Infra FE Team
+* 贡献者: [link](https://github.com/infra-fe/rap-client/graphs/contributors)
 
-- 前端架构(rap2-dolores)
-  - React / Redux / Saga / Router
-  - Mock.js
-  - SASS / Bootstrap 4 beta
-  - server: nginx
-- 后端架构(rap2-delos)
-  - Koa
-  - Sequelize
-  - MySQL
-  - Server
-  - server: node
 
-### 旧版本升级
-    
-    -数据库数据迁移  RAP2 2.4迁移到2.8
-      由于数据库表有主外键，按以下顺序插入数据
-      1.Users
-      2.Organizations
-      3.Repositories
-      4.repositories_members（备注：将createdAt、updatedAt两个字段必填去除）
-      5.organizations_members
-      6.Modules
-      7.Interfaces
-      8.Loggers
-      9.Properties（备注：将数据scope字段的所有''值替换成'String'）
-      default_val和repositories_collaborators表无数据无需处理
+### Tech Arch 技术栈
+
+* Front-end (rap-client)
+    * React / Redux / Saga / Router
+    * Mock.js
+    * SASS / Bootstrap 4 beta
+    * server: nginx
+* Back-end (rap-server)
+    * Koa
+    * Sequelize
+    * MySQL
+    * Server
+    * server: node
       
     

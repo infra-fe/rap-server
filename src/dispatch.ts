@@ -1,7 +1,8 @@
-import * as cluster from 'cluster'
+import cluster from 'cluster'
 import * as path from 'path'
 
 let now = () => new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')
+
 
 cluster.setupMaster({
   exec: path.join(__dirname, 'scripts/worker.js'),

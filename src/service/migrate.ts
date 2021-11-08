@@ -10,7 +10,7 @@ import MailService from './mail'
 import * as md5 from 'md5'
 const isMd5 = require('is-md5')
 import * as _ from 'lodash'
-
+const Converter = require('api-spec-converter')
 const safeEval = require('notevil')
 
 const SWAGGER_VERSION = {
@@ -690,13 +690,17 @@ export default class MigrateService {
     // 获取所有的TAG: 处理ROOT TAG中没有的情况
     for (const action in paths) {
       const apiObj = paths[action][Object.keys(paths[action])[0]]
+      // 处理没有path没有tag的情况
+      if (!Array.isArray(apiObj.tags)) {
+        apiObj.tags = ['default']
+      }
       const index = pathTag.findIndex((it: SwaggerTag) => {
         return apiObj.tags.length > 0 && it.name === apiObj.tags[0]
       })
       if (index < 0 && apiObj.tags.length > 0)
         pathTag.push({
           name: apiObj.tags[0],
-          description: tags.find(item => item.name === apiObj.tags[0]).description || '',
+          description: tags.find(item => item.name === apiObj.tags[0])?.description || '',
         })
     }
     tags = pathTag
@@ -732,7 +736,7 @@ export default class MigrateService {
       let mod = null
       if (findIndex < 0) {
         mod = await Module.create({
-          name: tag.name,
+          name: tag.name?.substring(0, 256),
           description: tag.description,
           priority: mCounter++,
           creatorId: curUserId,
@@ -746,6 +750,8 @@ export default class MigrateService {
         const method = Object.keys(paths[action])[0]
         const actionTags0 = apiObj.tags[0]
         const url = action
+        // 处理summary展示为undefined的情况
+        if (!apiObj.summary) apiObj.summary = ''
         const summary = apiObj.summary
 
         if (actionTags0 === tag.name) {
@@ -1071,7 +1077,14 @@ export default class MigrateService {
     try {
       if (!swagger) return { result: false, code: 'swagger' }
       const { host = '', info = {} } = swagger
-
+      if (swagger.openapi && swagger.openapi.startsWith('3.0')) {
+        const { spec } = await Converter.convert({
+          from: 'openapi_3',
+          to: 'swagger_2',
+          source: swagger,
+        })
+        swagger = spec
+      }
       if (swagger.swagger === SWAGGER_VERSION[version]) {
         let result
         let mailRepositoryName = '',
@@ -1470,6 +1483,7 @@ interface SwaggerInfo {
 }
 
 interface SwaggerData {
+  openapi?: string,
   swagger: string
   host: string
   tags: SwaggerTag[]

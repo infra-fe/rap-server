@@ -1,0 +1,36 @@
+{
+    "zh": {
+        "exModule": "示例模块",
+        "exInter": "示例接口",
+        "exInterDesc": "示例接口描述",
+        "exReqAttr": "请求属性示例",
+        "exResAttr": "响应属性示例",
+        "exStrAttr": "字符串属性示例",
+        "exNumAttr": "数字属性示例",
+        "exBoolAttr": "布尔属性示例",
+        "exRegAttr": "正则属性示例",
+        "exFunAttr": "函数属性示例",
+        "exArrAttr": "数组属性示例",
+        "exArrItemAttr": "数组元素示例",
+        "exCusArrItemAttr": "自定义数组元素示例",
+        "exObjAttr": "对象属性示例",
+        "exPlaAttr": "占位符示例"
+    },
+    "en": {
+        "exModule": "Example Module",
+        "exInter": "Example Interface",
+        "exInterDesc": "Example Interface description",
+        "exReqAttr": "example request attribute",
+        "exResAttr": "example response attribute",
+        "exStrAttr": "example string attribute",
+        "exNumAttr": "example number attribute",
+        "exBoolAttr": "example boolean attribute",
+        "exRegAttr": "example regexp attribute",
+        "exFunAttr": "example function attribute",
+        "exArrAttr": "example array attribute",
+        "exArrItemAttr": "example array element attribute",
+        "exCusArrItemAttr": "example customized array element attribute",
+        "exObjAttr": "example object attribute",
+        "exPlaAttr": "example placeholder"
+    }
+}

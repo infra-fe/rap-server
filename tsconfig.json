@@ -18,6 +18,7 @@
     "noImplicitThis": true,
     "noImplicitUseStrict": true,
     "suppressImplicitAnyIndexErrors": true,
+    "resolveJsonModule": true,
     "rootDir": "./src",
     "paths": {
       "*": [

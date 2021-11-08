@@ -14,7 +14,7 @@ import { Op } from 'sequelize'
 import { isLoggedIn } from './base'
 
 import { initRepository, initModule } from './utils/helper'
-import nanoid = require('nanoid')
+import { nanoid } from 'nanoid'
 import { LOG_SEPERATOR, LOG_SUB_SEPERATOR } from '../models/bo/historyLog'
 import { ENTITY_TYPE } from './utils/const'
 import { IPager } from '../types'
@@ -261,6 +261,7 @@ router.get('/repository/get', async (ctx) => {
 
 router.post('/repository/create', isLoggedIn, async (ctx, next) => {
   let creatorId = ctx.session.id
+  let lang = ctx.cookies.get('i18next') || 'en'
   let body = Object.assign({}, ctx.request.body, {
     creatorId,
     ownerId: creatorId,
@@ -275,7 +276,7 @@ router.post('/repository/create', isLoggedIn, async (ctx, next) => {
     let collaborators = await Repository.findAll({ where: { id: body.collaboratorIds } })
     await created.$set('collaborators', collaborators)
   }
-  await initRepository(created)
+  await initRepository(created, lang.substring(0, 2))
   ctx.body = {
     data: await Repository.findByPk(created.id, {
       attributes: { exclude: [] },
@@ -484,10 +485,11 @@ router.get('/module/get', async (ctx) => {
 
 router.post('/module/create', isLoggedIn, async (ctx, next) => {
   let creatorId = ctx.session.id
+  let lang = ctx.cookies.get('i18next') || 'en'
   let body = Object.assign(ctx.request.body, { creatorId })
   body.priority = Date.now()
   let created = await Module.create(body)
-  await initModule(created)
+  await initModule(created, lang.substring(0, 2))
   ctx.body = {
     data: await Module.findByPk(created.id)
   }

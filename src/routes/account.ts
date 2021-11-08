@@ -228,7 +228,7 @@ router.post('/account/fetchUserSettings', isLoggedIn, async (ctx) => {
   const data: { [key: string]: string } = {}
 
   for (const key of keys) {
-    data[key] = await RedisService.getCache(key, ctx.session.id) || DEFAULT_CACHE_VAL[key]
+    data[key] = await RedisService.getCache(key, ctx.session.id) || DEFAULT_CACHE_VAL[key] || ''
   }
 
   ctx.body = {

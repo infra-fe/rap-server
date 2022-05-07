@@ -1,8 +1,8 @@
-import { PostmanCollection, Folder, Item } from "../../types/postman"
-import { Repository, Interface, Module, Property } from "../../models"
+import { PostmanCollection, Folder, Item } from '../../types/postman'
+import { Repository, Interface, Module, Property } from '../../models'
 import * as url from 'url'
-import { POS_TYPE } from "../../models/bo/property"
-import UrlUtils from "../../routes/utils/url"
+import { POS_TYPE } from '../../models/bo/property'
+import UrlUtils from '../../routes/utils/url'
 
 const SCHEMA_V_2_1_0 = 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
 
@@ -18,16 +18,16 @@ export default class PostmanService {
           include: [{
             model: Property,
             as: 'properties',
-          }]
-        }]
-      }]
+          }],
+        }],
+      }],
     })
     const result: PostmanCollection = {
       info: {
         name: `RAP2 Pack ${repo.name}`,
         schema: SCHEMA_V_2_1_0,
       },
-      item: []
+      item: [],
     }
 
     for (const mod of repo.modules) {
@@ -39,13 +39,13 @@ export default class PostmanService {
       for (const itf of mod.interfaces) {
         const interfaceId = itf.id
         const requestParams = await Property.findAll({
-          where: { interfaceId, scope: 'request' }
+          where: { interfaceId, scope: 'request' },
         })
         const responseParams = await Property.findAll({
-          where: { interfaceId, scope: 'response' }
+          where: { interfaceId, scope: 'response' },
         })
         const eventScript = await Property.findAll({
-          where: { interfaceId, scope: 'script' }
+          where: { interfaceId, scope: 'script' },
         })
 
         const relativeUrl = UrlUtils.getRelative(itf.url)
@@ -67,7 +67,7 @@ export default class PostmanService {
             description: itf.description,
           },
           response: responseParams.map(x => ({ key: x.name, value: x.value })),
-          event: getEvent(eventScript)
+          event: getEvent(eventScript),
         }
         modItem.item.push(itfItem)
       }
@@ -79,9 +79,9 @@ export default class PostmanService {
 
 function getBody(pList: Property[]) {
   return {
-    "mode": "formdata" as "formdata",
-    "formdata": pList.filter(x => x.pos === POS_TYPE.BODY)
-      .map(x => ({ key: x.name, value: x.value, description: x.description, type: "text" as "text" })),
+    'mode': 'formdata' as 'formdata',
+    'formdata': pList.filter(x => x.pos === POS_TYPE.BODY)
+      .map(x => ({ key: x.name, value: x.value, description: x.description, type: 'text' as 'text' })),
   }
 }
 
@@ -101,6 +101,6 @@ function getEvent(pList: Property[]) {
       key: x.name,
       script: { key: x.name, type: 'text/javascript', exec: x.value },
       disabled: false,
-      listen: x.pos === POS_TYPE.PRE_REQUEST_SCRIPT ? 'prerequest' : 'test'
+      listen: x.pos === POS_TYPE.PRE_REQUEST_SCRIPT ? 'prerequest' : 'test',
     }))
 }

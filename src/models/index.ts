@@ -12,3 +12,4 @@ export { default as RepositoriesCollaborators } from './bo/repositoriesCollabora
 export { default as RepositoriesMembers } from './bo/repositoriesMembers'
 export { default as DefaultVal } from './bo/defaultVal'
 export { default as HistoryLog } from './bo/historyLog'
+export { default as Scene } from './bo/scene'

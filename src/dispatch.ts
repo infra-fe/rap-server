@@ -1,14 +1,14 @@
-import cluster from 'cluster'
 import * as path from 'path'
+const cluster = require('cluster')
 
-let now = () => new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')
+const now = () => new Date().toISOString().replace(/T/, ' ').replace(/Z/, '')
 
 
-cluster.setupMaster({
+cluster.setupPrimary({
   exec: path.join(__dirname, 'scripts/worker.js'),
 })
 
-if (cluster.isMaster) {
+if (cluster.isPrimary) {
   require('os').cpus().forEach(() => {
     cluster.fork()
   })

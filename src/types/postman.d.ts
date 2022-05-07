@@ -5,7 +5,8 @@
  */
 
 /**
- * A collection's friendly name is defined by this field. You would want to set this field to a value that would allow you to easily identify this collection among a bunch of other collections, as such outlining its usage or content.
+ * A collection's friendly name is defined by this field. You would want to set this field to a value that would allow you to
+ * easily identify this collection among a bunch of other collections, as such outlining its usage or content.
  */
 export type NameOfTheCollection = string
 /**
@@ -13,46 +14,50 @@ export type NameOfTheCollection = string
  */
 export type DefinitionsDescription = Description | string | null
 /**
- * Postman allows you to version your collections as they grow, and this field holds the version number. While optional, it is recommended that you use this field to its fullest extent!
+ * Postman allows you to version your collections as they grow, and this field holds the version number. While optional, it is
+ * recommended that you use this field to its fullest extent!
  */
 export type CollectionVersion =
   | {
-      /**
-       * Increment this number if you make changes to the collection that changes its behaviour. E.g: Removing or adding new test scripts. (partly or completely).
+    /**
+       * Increment this number if you make changes to the collection that changes its behaviour. E.g: Removing or adding new test
+       * scripts. (partly or completely).
        */
-      major: number
-      /**
+    major: number
+    /**
        * You should increment this number if you make changes that will not break anything that uses the collection. E.g: removing a folder.
        */
-      minor: number
-      /**
+    minor: number
+    /**
        * Ideally, minor changes to a collection should result in the increment of this number.
        */
-      patch: number
-      /**
+    patch: number
+    /**
        * A human friendly identifier to make sense of the version numbers. E.g: 'beta-3'
        */
-      identifier?: string
-      meta?: any
-      [k: string]: any
-    }
+    identifier?: string
+    meta?: any
+    [k: string]: any
+  }
   | string
 export type Items1 = Item | Folder
 /**
- * Using variables in your Postman requests eliminates the need to duplicate requests, which can save a lot of time. Variables can be defined, and referenced to from any part of a request.
+ * Using variables in your Postman requests eliminates the need to duplicate requests, which can save a lot of time. Variables can be defined,
+ *  and referenced to from any part of a request.
  */
 export type Variable =
   | {
-      [k: string]: any
-    }
+    [k: string]: any
+  }
   | {
-      [k: string]: any
-    }
+    [k: string]: any
+  }
   | {
-      [k: string]: any
-    }
+    [k: string]: any
+  }
 /**
- * Collection variables allow you to define a set of variables, that are a *part of the collection*, as opposed to environments, which are separate entities.
+ * Collection variables allow you to define a set of variables, that are a *part of the collection*, as opposed to environments, which are
+ * separate entities.
  * *Note: Collection variables must not contain any sensitive information.*
  */
 export type VariableList = Variable[]
@@ -61,49 +66,49 @@ export type VariableList = Variable[]
  */
 export type Url =
   | {
-      /**
+    /**
        * The string representation of the request URL, including the protocol, host, path, hash, query parameter(s) and path variable(s).
        */
-      raw?: string
-      /**
+    raw?: string
+    /**
        * The protocol associated with the request, E.g: 'http'
        */
-      protocol?: string
-      host?: Host
-      path?:
-        | string
-        | (
-            | string
-            | {
-                type?: string
-                value?: string
-                [k: string]: any
-              })[]
-      /**
+    protocol?: string
+    host?: Host
+    path?:
+    | string
+    | Array<| string
+    | {
+      type?: string
+      value?: string
+      [k: string]: any
+    }>
+    /**
        * The port number present in this URL. An empty value implies 80/443 depending on whether the protocol field contains http/https.
        */
-      port?: string
-      /**
+    port?: string
+    /**
        * An array of QueryParams, which is basically the query string part of the URL, parsed into separate variables
        */
-      query?: QueryParam[]
-      /**
+    query?: QueryParam[]
+    /**
        * Contains the URL fragment (if any). Usually this is not transmitted over the network, but it could be useful to store this in some cases.
        */
-      hash?: string
-      /**
+    hash?: string
+    /**
        * Postman supports path variables with the syntax `/path/:variableName/to/somewhere`. These variables are stored in this field.
        */
-      variable?: Variable[]
-      [k: string]: any
-    }
+    variable?: Variable[]
+    [k: string]: any
+  }
   | string
 /**
  * The host for the URL, E.g: api.yourdomain.com. Can be stored as a string or as an array of strings.
  */
 export type Host = string | string[]
 /**
- * Postman allows you to configure scripts to run when specific events occur. These scripts are stored here, and can be referenced in the collection by their ID.
+ * Postman allows you to configure scripts to run when specific events occur. These scripts are stored here, and can be referenced in the
+ * collection by their ID.
  */
 export type EventList = Event[]
 /**
@@ -148,27 +153,27 @@ export type OAuth2 = Auth1[]
 export type HeaderList = Header[]
 export type FormParameter =
   | {
-      key: string
-      value?: string
-      /**
+    key: string
+    value?: string
+    /**
        * When set to true, prevents this form data entity from being sent.
        */
-      disabled?: boolean
-      type?: "text"
-      description?: DefinitionsDescription
-      [k: string]: any
-    }
+    disabled?: boolean
+    type?: 'text'
+    description?: DefinitionsDescription
+    [k: string]: any
+  }
   | {
-      key: string
-      src?: string
-      /**
+    key: string
+    src?: string
+    /**
        * When set to true, prevents this form data entity from being sent.
        */
-      disabled?: boolean
-      type?: "file"
-      description?: DefinitionsDescription
-      [k: string]: any
-    }
+    disabled?: boolean
+    type?: 'file'
+    description?: DefinitionsDescription
+    [k: string]: any
+  }
 /**
  * The time taken by the request to complete. If a number, the unit is milliseconds. If the response is manually created, this can be set to `null`.
  */
@@ -178,14 +183,15 @@ export type Header1 = string
 /**
  * No HTTP request is complete without its headers, and the same is true for a Postman request. This field is an array containing all the headers.
  */
-export type Header2 = (Header | Header1)[]
+export type Header2 = Array<Header | Header1>
 export type Responses = Response[]
 export type Items = Item | Folder
 
 export interface PostmanCollection {
   info: Information
   /**
-   * Items are the basic unit for a Postman collection. You can think of them as corresponding to a single API endpoint. Each Item has one request and may have multiple API responses associated with it.
+   * Items are the basic unit for a Postman collection. You can think of them as corresponding to a single API endpoint. Each Item has one request
+   * and may have multiple API responses associated with it.
    */
   item: Items1[]
   event?: EventList
@@ -199,8 +205,9 @@ export interface PostmanCollection {
 export interface Information {
   name: NameOfTheCollection
   /**
-   * Every collection is identified by the unique value of this field. The value of this field is usually easiest to generate using a UID generator function. If you already have a collection, it is recommended that you maintain the same id since changing the id usually implies that is a different collection than it was originally.
-   *  *Note: This field exists for compatibility reasons with Collection Format V1.*
+   * Every collection is identified by the unique value of this field. The value of this field is usually easiest to generate using a UID generator
+   * function. If you already have a collection, it is recommended that you maintain the same id since changing the id usually implies that is a
+   * different collection than it was originally. Note: This field exists for compatibility reasons with Collection Format V1.*
    */
   _postman_id?: string
   description?: DefinitionsDescription
@@ -306,21 +313,21 @@ export interface Request {
    * The HTTP method associated with this request.
    */
   method?:
-    | "GET"
-    | "PUT"
-    | "POST"
-    | "PATCH"
-    | "DELETE"
-    | "COPY"
-    | "HEAD"
-    | "OPTIONS"
-    | "LINK"
-    | "UNLINK"
-    | "PURGE"
-    | "LOCK"
-    | "UNLOCK"
-    | "PROPFIND"
-    | "VIEW"
+  | 'GET'
+  | 'PUT'
+  | 'POST'
+  | 'PATCH'
+  | 'DELETE'
+  | 'COPY'
+  | 'HEAD'
+  | 'OPTIONS'
+  | 'LINK'
+  | 'UNLINK'
+  | 'PURGE'
+  | 'LOCK'
+  | 'UNLOCK'
+  | 'PROPFIND'
+  | 'VIEW'
   description?: DefinitionsDescription
   header?: HeaderList | string
   /**
@@ -330,7 +337,7 @@ export interface Request {
     /**
      * Postman stores the type of data associated with this request in this field.
      */
-    mode?: "raw" | "urlencoded" | "formdata" | "file"
+    mode?: 'raw' | 'urlencoded' | 'formdata' | 'file'
     raw?: string
     urlencoded?: UrlEncodedParameter[]
     formdata?: FormParameter[]
@@ -350,7 +357,7 @@ export interface Request {
  * Represents authentication helpers provided by Postman
  */
 export interface Auth {
-  type: "awsv4" | "basic" | "bearer" | "digest" | "hawk" | "noauth" | "oauth1" | "oauth2" | "ntlm"
+  type: 'awsv4' | 'basic' | 'bearer' | 'digest' | 'hawk' | 'noauth' | 'oauth1' | 'oauth2' | 'ntlm'
   noauth?: any
   awsv4?: AwsSignatureV4
   basic?: BasicAuthentication
@@ -539,11 +546,13 @@ export interface Cookie {
   [k: string]: any
 }
 /**
- * One of the primary goals of Postman is to organize the development of APIs. To this end, it is necessary to be able to group requests together. This can be achived using 'Folders'. A folder just is an ordered set of requests.
+ * One of the primary goals of Postman is to organize the development of APIs. To this end, it is necessary to be able to group
+ * requests together. This can be achived using 'Folders'. A folder just is an ordered set of requests.
  */
 export interface Folder {
   /**
-   * A folder's friendly name is defined by this field. You would want to set this field to a value that would allow you to easily identify this folder.
+   * A folder's friendly name is defined by this field. You would want to set this field to a value that would allow you to easily
+   * identify this folder.
    */
   name?: string
   description?: DefinitionsDescription

@@ -2,7 +2,7 @@ import { init, after } from './delos'
 /**
  * initialize database
  */
-export async function main () {
+export async function main() {
   await init()
   console.log('after init')
   await after()

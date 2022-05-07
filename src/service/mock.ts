@@ -1,18 +1,20 @@
-import { Repository, Interface, Property, DefaultVal } from '../models'
+import { Repository, Interface, Property, DefaultVal, Scene } from '../models'
 import { Op } from 'sequelize'
+import * as JSON5 from 'json5'
 import urlUtils from '../routes/utils/url'
 import Tree from '../routes/utils/tree'
 import * as urlPkg from 'url'
 import * as querystring from 'querystring'
 
-const REG_URL_METHOD = /^\/?(get|post|delete|put)/i
+import CounterService from './counter'
+
+const REG_URL_METHOD = /^\/?(get|post|delete|put)\//i
 const attributes: any = { exclude: [] }
 
 export class MockService {
   public static async mock(ctx: any, option: { forceVerify: boolean } = { forceVerify: false }) {
     const { forceVerify } = option
-    let app: any = ctx.app
-    app.counter.mock++
+    await CounterService.count()
     let { repositoryId, url } = ctx.params
     let method = ctx.request.method
     repositoryId = +repositoryId
@@ -23,10 +25,10 @@ export class MockService {
       url = url.replace(REG_URL_METHOD, '')
     }
 
-    let urlWithoutPrefixSlash = /(\/)?(.*)/.exec(url)[2]
+    const urlWithoutPrefixSlash = /(\/)?(.*)/.exec(url)[2]
 
-    let repository = await Repository.findByPk(repositoryId)
-    let collaborators: Repository[] = (await repository.$get('collaborators')) as Repository[]
+    const repository = await Repository.findByPk(repositoryId)
+    const collaborators: Repository[] = (await repository.$get('collaborators')) as Repository[]
     let itf: Interface
 
     let matchedItfList = await Interface.findAll({
@@ -83,7 +85,7 @@ export class MockService {
         for (const p of pairs) {
           const key = p[0]
           const val = p[1]
-          if (params[key] != val) {
+          if (params[key] !== val) {
             return false
           }
         }
@@ -113,7 +115,7 @@ export class MockService {
 
     if (!itf) {
       // try RESTFul API search...
-      let list = await Interface.findAll({
+      const list = await Interface.findAll({
         attributes: ['id', 'url', 'method'],
         where: {
           repositoryId: [repositoryId, ...collaborators.map(item => item.id)],
@@ -121,14 +123,14 @@ export class MockService {
         },
       })
 
-      let listMatched = []
-      let relativeUrl = urlUtils.getRelative(url)
+      const listMatched = []
+      const relativeUrl = urlUtils.getRelative(url)
 
-      for (let item of list) {
-        let regExp = urlUtils.getUrlPattern(item.url) // 获取地址匹配正则
+      for (const item of list) {
+        const regExp = urlUtils.getUrlPattern(item.url) // 获取地址匹配正则
         if (regExp.test(relativeUrl)) {
           // 检查地址是否匹配
-          let regMatchLength = regExp.exec(relativeUrl).length // 执行地址匹配
+          const regMatchLength = regExp.exec(relativeUrl).length // 执行地址匹配
           if (listMatched[regMatchLength]) {
             // 检查匹配地址中，是否具有同group数量的数据
             ctx.body = {
@@ -143,7 +145,7 @@ export class MockService {
 
       let loadDataId = 0
       if (listMatched.length > 1) {
-        for (let matchedItem of listMatched) {
+        for (const matchedItem of listMatched) {
           // 循环匹配内的数据
           if (matchedItem) {
             // 忽略为空的数据
@@ -162,7 +164,18 @@ export class MockService {
       itf = itf = await Interface.findByPk(loadDataId)
     }
 
-    let interfaceId = itf.id
+    const interfaceId = itf.id
+    // match scene mode
+    const { __scene = '' } = { ...ctx.params, ...ctx.query, ...ctx.request.body }
+    if (__scene) {
+      const scenes = await Scene.findAll({
+        where: { sceneKey: __scene, interfaceId, deletedAt: null },
+      })
+      const sceneData = scenes?.[0]?.sceneData ?? '{}'
+      ctx.body = JSON5.parse(sceneData)
+      return
+    }
+
     let properties = await Property.findAll({
       attributes,
       where: { interfaceId, scope: 'response' },
@@ -183,8 +196,8 @@ export class MockService {
     }
 
     // check required
-    if (forceVerify && ~['GET', 'POST'].indexOf(method)) {
-      let requiredProperties = await Property.findAll({
+    if (forceVerify && ['GET', 'POST'].indexOf(method) > -1) {
+      const requiredProperties = await Property.findAll({
         attributes,
         where: { interfaceId, scope: 'request', required: true },
       })
@@ -203,7 +216,7 @@ export class MockService {
       if (!passed) {
         ctx.set(
           'X-RAP-WARNING',
-          `Required parameter ${pFailed.name} has not be passed in.`,
+          `Required parameter ${pFailed.name} has not be passed in.`
         )
       }
     }
@@ -216,7 +229,7 @@ export class MockService {
       where: { interfaceId, scope: 'request' },
     })
     requestProperties = requestProperties.map((item: any) => item.toJSON())
-    let requestData = Tree.ArrayToTreeToTemplateToData(requestProperties)
+    const requestData = Tree.ArrayToTreeToTemplateToData(requestProperties)
     Object.assign(requestData, { ...ctx.params, ...ctx.query, ...ctx.body })
     let data = Tree.ArrayToTreeToTemplateToData(properties, requestData)
     if (data.__root__) {
@@ -235,7 +248,7 @@ export class MockService {
       const cbName = query['[callback]']
       const cbVal = ctx.request.query[`${cbName}`]
       if (cbVal) {
-        let body = typeof ctx.body === 'object' ? JSON.stringify(ctx.body, undefined, 2) : ctx.body
+        const body = typeof ctx.body === 'object' ? JSON.stringify(ctx.body, undefined, 2) : ctx.body
         ctx.type = 'application/x-javascript'
         ctx.body = cbVal + '(' + body + ')'
       }

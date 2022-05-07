@@ -1,7 +1,7 @@
 import router from './router'
-import Repository from "../models/bo/repository"
-import Logger from "../models/bo/logger"
-import User from "../models/bo/user"
+import Repository from '../models/bo/repository'
+import Logger from '../models/bo/logger'
+import User from '../models/bo/user'
 const moment = require('moment')
 const Sequelize = require('sequelize')
 const SELECT = { type: Sequelize.QueryTypes.SELECT }
@@ -11,9 +11,9 @@ const YYYY_MM_DD = 'YYYY-MM-DD'
 
 // 最近 30 天新建仓库数
 router.get('/app/analytics/repositories/created', isLoggedIn, async (ctx) => {
-  let start = moment().startOf('day').subtract(30, 'days').format(YYYY_MM_DD)
-  let end = moment().startOf('day').format(YYYY_MM_DD)
-  let sql = `
+  const start = moment().startOf('day').subtract(30, 'days').format(YYYY_MM_DD)
+  const end = moment().startOf('day').format(YYYY_MM_DD)
+  const sql = `
     SELECT
         DATE(createdAt) AS label,
         COUNT(*) as value
@@ -36,9 +36,9 @@ router.get('/app/analytics/repositories/created', isLoggedIn, async (ctx) => {
 
 // 最近 30 天活跃仓库数
 router.get('/app/analytics/repositories/updated', isLoggedIn, async (ctx) => {
-  let start = moment().startOf('day').subtract(30, 'days').format(YYYY_MM_DD)
-  let end = moment().startOf('day').format(YYYY_MM_DD)
-  let sql = `
+  const start = moment().startOf('day').subtract(30, 'days').format(YYYY_MM_DD)
+  const end = moment().startOf('day').format(YYYY_MM_DD)
+  const sql = `
     SELECT
         DATE(updatedAt) AS label,
         COUNT(*) as value
@@ -61,9 +61,9 @@ router.get('/app/analytics/repositories/updated', isLoggedIn, async (ctx) => {
 
 // 最近 30 天活跃用户
 router.get('/app/analytics/users/activation', isLoggedIn, async (ctx) => {
-  let start = moment().startOf('day').subtract(30, 'days').format(YYYY_MM_DD)
-  let end = moment().startOf('day').format(YYYY_MM_DD)
-  let sql = `
+  const start = moment().startOf('day').subtract(30, 'days').format(YYYY_MM_DD)
+  const end = moment().startOf('day').format(YYYY_MM_DD)
+  const sql = `
     SELECT
         loggers.userId AS userId,
         users.fullname AS fullname,
@@ -78,7 +78,7 @@ router.get('/app/analytics/users/activation', isLoggedIn, async (ctx) => {
     ORDER BY value DESC
     LIMIT 10
   `
-  let result = await sequelize.query(sql, SELECT)
+  const result = await sequelize.query(sql, SELECT)
   ctx.body = {
     data: result,
   }
@@ -86,9 +86,9 @@ router.get('/app/analytics/users/activation', isLoggedIn, async (ctx) => {
 
 // 最近 30 天活跃仓库
 router.get('/app/analytics/repositories/activation', isLoggedIn, async (ctx) => {
-  let start = moment().startOf('day').subtract(30, 'days').format(YYYY_MM_DD)
-  let end = moment().startOf('day').format(YYYY_MM_DD)
-  let sql = `
+  const start = moment().startOf('day').subtract(30, 'days').format(YYYY_MM_DD)
+  const end = moment().startOf('day').format(YYYY_MM_DD)
+  const sql = `
     SELECT
         loggers.repositoryId AS repositoryId,
         repositories.name,
@@ -106,7 +106,7 @@ router.get('/app/analytics/repositories/activation', isLoggedIn, async (ctx) => 
     ORDER BY value DESC
     LIMIT 10
   `
-  let result = await sequelize.query(sql, SELECT)
+  const result = await sequelize.query(sql, SELECT)
   ctx.body = {
     data: result,
   }

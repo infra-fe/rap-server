@@ -25,9 +25,9 @@ RAP是在RAP1 & RAP2基础上重做的新项目，它包含两个组件(对应�
 
 在任意地方建立目录 rap
 
-把本仓库中的 [docker-compose.yml](https://raw.githubusercontent.com/thx/rap2-delos/master/docker-compose.yml) 放到 rap 目录中
+把本仓库中的 [docker-compose.yml](https://github.com/infra-fe/rap-server/master/docker-compose.yml) 放到 rap 目录中
 
-Rap 前端服务的端口号默认为 3000，你可以在 docker-compose.yml 中按照注释自定义
+Rap 前端服务的端口号默认为 3800，你可以在 docker-compose.yml 中按照注释自定义
 
 在 rap 目录下执行下面的命令：
 
@@ -37,10 +37,10 @@ docker-compose up -d
 
 # 启动后，第一次运行需要手动初始化mysql数据库
 # ⚠️注意: 只有第一次该这样做
-docker-compose exec delos node scripts/init
+docker-compose exec rapserver node scripts/initSchema.js force
 
 # 部署成功后 访问
-http://localhost:3000 # 前端（可自定义端口号）
+http://localhost:3800 # 前端（可自定义端口号）
 http://localhost:38080 # 后端
 
 # 如果访问不了可能是数据库没有链接上，关闭 rap 服务
@@ -48,7 +48,7 @@ docker-compose down
 # 再重新运行
 docker-compose up -d
 # 如果 Sequelize 报错可能是数据库表发生了变化，运行下面命令同步
-docker-compose exec delos node scripts/updateSchema
+docker-compose exec rapserver node scripts/updateSchema
 ```
 
 **⚠️注意：第一次运行后 rap 目录下会被自动创建一个 docker 目录，里面存有 rap 的数据库数据，可千万不要删除。**
@@ -74,7 +74,7 @@ docker image prune -f
 
 ### 环境要求
 
-- Node.js 8.9.4+
+- Node.js 16.0+
 - MySQL 5.7+
 - Redis 4.0+
 - pandoc 2.73 (供文档生成使用)
@@ -183,5 +183,4 @@ npm start
     * MySQL
     * Server
     * server: node
-      
-    
+

@@ -1,31 +1,28 @@
-# mail@dongguochao.com
-# llitfkitfk@gmail.com
-# chibing.fy@alibaba-inc.com
-
 version: "3"
 
 services:
   # frontend
-  dolores:
-    image: rapteam/rap2-dolores:latest
+  rapclient:
+    image: udfteam/rap-client:latest
     ports:
       #冒号前可以自定义前端端口号，冒号后不要动
-      - 3000:38081
+      - 3800:38081
 
   # backend
-  delos:
-    image: rapteam/rap2-delos:latest
+  rapserver:
+    image: udfteam/rap-server:latest
+    container_name: rapserver
     ports:
       # 这里的配置不要改哦
       - 38080:38080
     environment:
       - SERVE_PORT=38080
       # if you have your own mysql, config it here, and disable the 'mysql' config blow
-      - MYSQL_URL=mysql # links will maintain /etc/hosts, just use 'container_name'
+      - MYSQL_URL=rap_mysql # links will maintain /etc/hosts, just use 'container_name'
       - MYSQL_PORT=3306
       - MYSQL_USERNAME=root
-      - MYSQL_PASSWD=
-      - MYSQL_SCHEMA=rap2
+      - MYSQL_PASSWD=123456789
+      - MYSQL_SCHEMA=rap
 
       # redis config
       - REDIS_URL=redis
@@ -50,16 +47,18 @@ services:
   # disable this if you have your own mysql
   mysql:
     image: mysql:5.7
+    container_name: rap_mysql
     # expose 33306 to client (navicat)
     #ports:
-    #   - 33306:3306
+    #- 6606:3306
     volumes:
       # change './docker/mysql/volume' to your own path
       # WARNING: without this line, your data will be lost.
       - "./docker/mysql/volume:/var/lib/mysql"
     command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --init-connect='SET NAMES utf8mb4;' --innodb-flush-log-at-trx-commit=0
     environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
-      MYSQL_DATABASE: "rap2"
-      MYSQL_USER: "root"
-      MYSQL_PASSWORD: ""
+       MYSQL_ROOT_PASSWORD: "123456789" #MYSQL数据密码,可根据需要更改
+       # MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+       MYSQL_DATABASE: "rap"
+       # MYSQL_USER: "root"
+       MYSQL_PASSWORD: ""

@@ -36,13 +36,13 @@ export default class PostmanService {
               include: [
                 {
                   model: Property,
-                  as: 'properties'
-                }
-              ]
-            }
-          ]
-        }
-      ]
+                  as: 'properties',
+                },
+              ],
+            },
+          ],
+        },
+      ],
     })
 
     const result = dedent`
@@ -54,12 +54,12 @@ export default class PostmanService {
 
     # 仓库：${repo.name}
     ${repo.modules
-      .map(
-        m => dedent`
+    .map(
+      m => dedent`
       ## 模块：${m.name}
       ${m.interfaces
-        .map(
-          intf => dedent`
+    .map(
+      intf => dedent`
         ### 接口：${intf.name}
         * 地址：${intf.url}
         * 类型：${intf.method}
@@ -78,11 +78,11 @@ export default class PostmanService {
         ${asTree(arrayToTree(intf.properties.filter(item => item.scope === 'response')), true, undefined)}
         \`\`\`
       `
-        )
-        .join('\n\n\n')}
+    )
+    .join('\n\n\n')}
     `
-      )
-      .join('\n\n\n')}
+    )
+    .join('\n\n\n')}
     `
     return result
   }

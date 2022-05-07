@@ -1,5 +1,5 @@
 import { Table, Column, Model, HasMany, AutoIncrement, PrimaryKey, AllowNull, DataType, Default, BelongsTo, ForeignKey, BeforeBulkDestroy, BeforeBulkCreate, BeforeBulkUpdate, BeforeCreate, BeforeUpdate, BeforeDestroy } from 'sequelize-typescript'
-import { User, Module, Repository, Property } from '../'
+import { User, Module, Repository, Property, Scene } from '../'
 import RedisService, { CACHE_KEY } from '../../service/redis'
 import * as Sequelize from 'sequelize'
 import { BODY_OPTION } from '../../routes/utils/const'
@@ -42,6 +42,10 @@ export default class Interface extends Model<Interface> {
       id = (id as any)[0]
     }
     if (id) {
+      if (options.type === 'BULKDELETE') {
+        const now = Math.floor(Date.now() / 1000)
+        await Scene.update({deletedAt: now}, { where: { interfaceId: id }})
+      }
       const itf = await Interface.findByPk(id)
       await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, itf.repositoryId)
     }
@@ -55,65 +59,70 @@ export default class Interface extends Model<Interface> {
   @AutoIncrement
   @PrimaryKey
   @Column
-  id: number
+    id: number
 
   @AllowNull(false)
   @Column(DataType.STRING(256))
-  name: string
+    name: string
 
   @AllowNull(false)
   @Column(DataType.STRING(256))
-  url: string
+    url: string
 
   @AllowNull(false)
   @Column({ comment: 'API method' })
-  method: string
+    method: string
 
   @Column({ type: DataType.STRING(255) })
-  bodyOption?: BODY_OPTION
+    bodyOption?: BODY_OPTION
 
   @Column(DataType.TEXT)
-  description: string
+    description: string
 
   @AllowNull(false)
   @Default(1)
   @Column(DataType.BIGINT())
-  priority: number
+    priority: number
 
   @Default(200)
   @Column
-  status: number
+    status: number
 
   @ForeignKey(() => User)
   @Column
-  creatorId: number
+    creatorId: number
 
   @ForeignKey(() => User)
   @Column
-  lockerId: number
+    lockerId: number
 
   @ForeignKey(() => Module)
   @Column
-  moduleId: number
+    moduleId: number
 
   @ForeignKey(() => Repository)
   @Column
-  repositoryId: number
+    repositoryId: number
 
   @BelongsTo(() => User, 'creatorId')
-  creator: User
+    creator: User
 
   @BelongsTo(() => User, 'lockerId')
-  locker: User
+    locker: User
 
   @BelongsTo(() => Module, 'moduleId')
-  module: Module
+    module: Module
 
   @BelongsTo(() => Repository, 'repositoryId')
-  repository: Repository
+    repository: Repository
 
   @HasMany(() => Property, 'interfaceId')
-  properties: Property[]
+    properties: Property[]
+
+  /** Is this API as a template? */
+  @Default(0)
+  @Column
+    isTmpl: boolean
 
 }
 

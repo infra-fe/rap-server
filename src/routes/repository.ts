@@ -19,19 +19,20 @@ import { LOG_SEPERATOR, LOG_SUB_SEPERATOR } from '../models/bo/historyLog'
 import { ENTITY_TYPE } from './utils/const'
 import { IPager } from '../types'
 import * as JSON5 from 'json5'
+import { MoveOp } from '../models/bo/interface'
 
 router.get('/app/get', async (ctx, next) => {
-  let data: any = {}
-  let query = ctx.query
-  let hooks: any = {
+  const data: any = {}
+  const query = ctx.query
+  const hooks: any = {
     repository: Repository,
     module: Module,
     interface: Interface,
     property: Property,
     user: User,
   }
-  for (let name in hooks) {
-    if (!query[name]) continue
+  for (const name in hooks) {
+    if (!query[name]) {continue}
     data[name] = await hooks[name].findByPk(query[name])
   }
   ctx.body = {
@@ -48,8 +49,8 @@ router.get('/repository/count', async (ctx) => {
 })
 
 router.get('/repository/list', async (ctx) => {
-  let where = {}
-  let { name, user, organization } = ctx.query
+  const where = {}
+  const { name, user, organization } = ctx.query
 
   if (+organization > 0) {
     const access = await AccessUtils.canUserAccess(ACCESS_TYPE.ORGANIZATION_GET, ctx.session.id, +organization)
@@ -57,34 +58,34 @@ router.get('/repository/list', async (ctx) => {
     if (access === false) {
       ctx.body = {
         isOk: false,
-        errMsg: Consts.COMMON_MSGS.ACCESS_DENY
+        errMsg: Consts.COMMON_MSGS.ACCESS_DENY,
       }
       return
     }
   }
 
   // tslint:disable-next-line:no-null-keyword
-  if (user) Object.assign(where, { ownerId: user, organizationId: null })
-  if (organization) Object.assign(where, { organizationId: organization })
+  if (user) {Object.assign(where, { ownerId: user, organizationId: null })}
+  if (organization) {Object.assign(where, { organizationId: organization })}
   if (name) {
     Object.assign(where, {
       [Op.or]: [
         { name: { [Op.like]: `%${name}%` } },
-        { id: name } // name => id
-      ]
+        { id: name }, // name => id
+      ],
     })
   }
-  let total = await Repository.count({
+  const total = await Repository.count({
     where,
     include: [
       QueryInclude.Creator,
       QueryInclude.Owner,
-      QueryInclude.Locker
-    ]
+      QueryInclude.Locker,
+    ],
   })
-  let limit = Math.min(+ctx.query.limit ?? 10, 100)
-  let pagination = new Pagination(total, ctx.query.cursor || 1, limit)
-  let repositories = await Repository.findAll({
+  const limit = Math.min(+ctx.query.limit ?? 10, 100)
+  const pagination = new Pagination(total, ctx.query.cursor || 1, limit)
+  const repositories = await Repository.findAll({
     where,
     attributes: { exclude: [] },
     include: [
@@ -97,17 +98,17 @@ router.get('/repository/list', async (ctx) => {
     ],
     offset: pagination.start,
     limit: pagination.limit,
-    order: [['updatedAt', 'DESC']]
+    order: [['updatedAt', 'DESC']],
   })
-  let repoData = await Promise.all(repositories.map(async (repo) => {
+  const repoData = await Promise.all(repositories.map(async (repo) => {
     const canUserEdit = await AccessUtils.canUserAccess(
       ACCESS_TYPE.REPOSITORY_SET,
       ctx.session.id,
-      repo.id,
+      repo.id
     )
     return {
       ...repo.toJSON(),
-      canUserEdit
+      canUserEdit,
     }
   }))
   ctx.body = {
@@ -118,20 +119,20 @@ router.get('/repository/list', async (ctx) => {
 })
 
 router.get('/repository/owned', isLoggedIn, async (ctx) => {
-  let where = {}
-  let { name } = ctx.query
+  const where = {}
+  const { name } = ctx.query
   if (name) {
     Object.assign(where, {
       [Op.or]: [
         { name: { [Op.like]: `%${name}%` } },
-        { id: name } // name => id
-      ]
+        { id: name }, // name => id
+      ],
     })
   }
 
-  let auth: User = await User.findByPk(ctx.query.user || ctx.session.id)
+  const auth: User = await User.findByPk(ctx.query.user || ctx.session.id)
 
-  let repositories = await auth.$get('ownedRepositories', {
+  const repositories = await auth.$get('ownedRepositories', {
     where,
     include: [
       QueryInclude.Creator,
@@ -141,12 +142,12 @@ router.get('/repository/owned', isLoggedIn, async (ctx) => {
       QueryInclude.Organization,
       QueryInclude.Collaborators,
     ],
-    order: [['updatedAt', 'DESC']]
+    order: [['updatedAt', 'DESC']],
   })
-  let repoData = repositories.map(repo => {
+  const repoData = repositories.map(repo => {
     return {
       ...repo.toJSON(),
-      canUserEdit: true
+      canUserEdit: true,
     }
   })
   ctx.body = {
@@ -156,19 +157,19 @@ router.get('/repository/owned', isLoggedIn, async (ctx) => {
 })
 
 router.get('/repository/joined', isLoggedIn, async (ctx) => {
-  let where: any = {}
-  let { name } = ctx.query
+  const where: any = {}
+  const { name } = ctx.query
   if (name) {
     Object.assign(where, {
       [Op.or]: [
         { name: { [Op.like]: `%${name}%` } },
-        { id: name } // name => id
-      ]
+        { id: name }, // name => id
+      ],
     })
   }
 
-  let auth = await User.findByPk(ctx.query.user || ctx.session.id)
-  let repositories = await auth.$get('joinedRepositories', {
+  const auth = await User.findByPk(ctx.query.user || ctx.session.id)
+  const repositories = await auth.$get('joinedRepositories', {
     where,
     attributes: { exclude: [] },
     include: [
@@ -179,9 +180,9 @@ router.get('/repository/joined', isLoggedIn, async (ctx) => {
       QueryInclude.Organization,
       QueryInclude.Collaborators,
     ],
-    order: [['updatedAt', 'DESC']]
+    order: [['updatedAt', 'DESC']],
   })
-  let repoData = repositories.map(repo => {
+  const repoData = repositories.map(repo => {
     return {
       ...repo.toJSON(),
       canUserEdit: true,
@@ -189,7 +190,7 @@ router.get('/repository/joined', isLoggedIn, async (ctx) => {
   })
   ctx.body = {
     data: repoData,
-    pagination: undefined
+    pagination: undefined,
   }
 })
 
@@ -203,7 +204,7 @@ router.get('/repository/get', async (ctx) => {
   if (access === false) {
     ctx.body = {
       isOk: false,
-      errMsg: Consts.COMMON_MSGS.ACCESS_DENY
+      errMsg: Consts.COMMON_MSGS.ACCESS_DENY,
     }
     return
   }
@@ -212,13 +213,10 @@ router.get('/repository/get', async (ctx) => {
     ACCESS_TYPE.REPOSITORY_SET,
     ctx.session.id,
     +ctx.query.id,
-    ctx.query.token as string,
+    ctx.query.token as string
   )
-  let repository: Partial<Repository> & {
-    canUserEdit: boolean
-  }
   // 分开查询减少查询时间
-  let [repositoryOmitModules, repositoryModules] = await Promise.all([
+  const [repositoryOmitModules, repositoryModules] = await Promise.all([
     Repository.findByPk(+ctx.query.id, {
       attributes: { exclude: [] },
       include: [
@@ -248,10 +246,10 @@ router.get('/repository/get', async (ctx) => {
       ],
     }),
   ])
-  repository = {
+  const repository: Partial<Repository> & { canUserEdit: boolean } = {
     ...repositoryOmitModules.toJSON(),
     ...repositoryModules.toJSON(),
-    canUserEdit
+    canUserEdit,
   }
 
   ctx.body = {
@@ -260,23 +258,23 @@ router.get('/repository/get', async (ctx) => {
 })
 
 router.post('/repository/create', isLoggedIn, async (ctx, next) => {
-  let creatorId = ctx.session.id
-  let lang = ctx.cookies.get('i18next') || 'en'
-  let body = Object.assign({}, ctx.request.body, {
+  const creatorId = ctx.session.id
+  const lang = (ctx.cookies.get('i18next') || 'en').substring(0, 2)
+  const body = Object.assign({}, ctx.request.body, {
     creatorId,
     ownerId: creatorId,
-    token: nanoid(32)
+    token: nanoid(32),
   })
-  let created = await Repository.create(body)
+  const created = await Repository.create(body)
   if (body.memberIds) {
-    let members = await User.findAll({ where: { id: body.memberIds } })
+    const members = await User.findAll({ where: { id: body.memberIds } })
     await created.$set('members', members)
   }
   if (body.collaboratorIds) {
-    let collaborators = await Repository.findAll({ where: { id: body.collaboratorIds } })
+    const collaborators = await Repository.findAll({ where: { id: body.collaboratorIds } })
     await created.$set('collaborators', collaborators)
   }
-  await initRepository(created, lang.substring(0, 2))
+  await initRepository(created, lang)
   ctx.body = {
     data: await Repository.findByPk(created.id, {
       attributes: { exclude: [] },
@@ -306,33 +304,33 @@ router.post('/repository/update', isLoggedIn, async (ctx, next) => {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let repo = await Repository.findByPk(body.id)
+  const repo = await Repository.findByPk(body.id)
 
   // 更改团队需要校验是否有当前团队和目标团队的权限
-  if (body.organizationId != repo.organizationId) {
+  if (body.organizationId !== repo.organizationId) {
 
     if (body.organizationId && !(await OrganizationService.canUserAccessOrganization(ctx.session.id, body.organizationId))) {
-      ctx.body = '没有当前团队的权限'
+      ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
       return
     }
 
     if (repo.organizationId && !(await OrganizationService.canUserAccessOrganization(ctx.session.id, repo.organizationId))) {
-      ctx.body = '没有目标团队的权限'
+      ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
       return
     }
   }
 
   delete body.creatorId
 
-  let result = await Repository.update(body, { where: { id: body.id } })
+  const result = await Repository.update(body, { where: { id: body.id } })
   if (body.memberIds) {
-    let reloaded = await Repository.findByPk(body.id, {
+    const reloaded = await Repository.findByPk(body.id, {
       include: [{
         model: User,
         as: 'members',
       }],
     })
-    let members = await User.findAll({
+    const members = await User.findAll({
       where: {
         id: {
           [Op.in]: body.memberIds,
@@ -345,8 +343,8 @@ router.post('/repository/update', isLoggedIn, async (ctx, next) => {
     ctx.nextAssociations = reloaded.members
   }
   if (body.collaboratorIds) {
-    let reloaded = await Repository.findByPk(body.id)
-    let collaborators = await Repository.findAll({
+    const reloaded = await Repository.findByPk(body.id)
+    const collaborators = await Repository.findAll({
       where: {
         id: {
           [Op.in]: body.collaboratorIds,
@@ -361,40 +359,40 @@ router.post('/repository/update', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  let { id } = ctx.request.body
+  const { id } = ctx.request.body
   await Logger.create({
     userId: ctx.session.id,
     type: 'update',
     repositoryId: id,
   })
   // 加入 & 退出
-  if (!ctx.prevAssociations || !ctx.nextAssociations) return
-  let prevIds = ctx.prevAssociations.map((item: any) => item.id)
-  let nextIds = ctx.nextAssociations.map((item: any) => item.id)
-  let joined = _.difference(nextIds, prevIds)
-  let exited = _.difference(prevIds, nextIds)
-  let creatorId = ctx.session.id
-  for (let userId of joined) {
+  if (!ctx.prevAssociations || !ctx.nextAssociations) {return}
+  const prevIds = ctx.prevAssociations.map((item: any) => item.id)
+  const nextIds = ctx.nextAssociations.map((item: any) => item.id)
+  const joined: number[] = _.difference(nextIds, prevIds)
+  const exited: number[] = _.difference(prevIds, nextIds)
+  const creatorId = ctx.session.id
+  for (const userId of joined) {
     await Logger.create({ creatorId, userId, type: 'join', repositoryId: id })
   }
-  for (let userId of exited) {
+  for (const userId of exited) {
     await Logger.create({ creatorId, userId, type: 'exit', repositoryId: id })
   }
 })
 
 router.post('/repository/transfer', isLoggedIn, async (ctx) => {
-  let { id, ownerId, organizationId } = ctx.request.body
+  const { id, ownerId, organizationId } = ctx.request.body
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.ORGANIZATION_SET, ctx.session.id, organizationId)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let body: any = {}
-  if (ownerId) body.ownerId = ownerId // 转移给其他用户
+  const body: any = {}
+  if (ownerId) {body.ownerId = ownerId} // 转移给其他用户
   if (organizationId) {
     body.organizationId = organizationId // 转移给其他团队，同时转移给该团队拥有者
     body.ownerId = (await Organization.findByPk(organizationId)).ownerId
   }
-  let result = await Repository.update(body, { where: { id } })
+  const result = await Repository.update(body, { where: { id } })
   ctx.body = {
     data: result[0],
   }
@@ -406,7 +404,7 @@ router.get('/repository/remove', isLoggedIn, async (ctx, next) => {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let result = await Repository.destroy({ where: { id } })
+  const result = await Repository.destroy({ where: { id } })
   await Module.destroy({ where: { repositoryId: id } })
   await Interface.destroy({ where: { repositoryId: id } })
   await Property.destroy({ where: { repositoryId: id } })
@@ -415,12 +413,12 @@ router.get('/repository/remove', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) return
-  let { id } = ctx.query
+  if (ctx.body.data === 0) {return}
+  const { id } = ctx.query
   await Logger.create({
     userId: ctx.session.id,
     type: 'delete',
-    repositoryId: id,
+    repositoryId: +id,
   })
 })
 
@@ -431,12 +429,12 @@ router.post('/repository/lock', isLoggedIn, async (ctx) => {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let user = ctx.session.id
+  const user = ctx.session.id
   if (!user) {
     ctx.body = { data: 0 }
     return
   }
-  let result = await Repository.update({ lockerId: user }, {
+  const result = await Repository.update({ lockerId: user }, {
     where: { id },
   })
   ctx.body = { data: result[0] }
@@ -447,9 +445,9 @@ router.post('/repository/unlock', async (ctx) => {
     ctx.body = { data: 0 }
     return
   }
-  let { id } = ctx.request.body
+  const { id } = ctx.request.body
   // tslint:disable-next-line:no-null-keyword
-  let result = await Repository.update({ lockerId: null }, {
+  const result = await Repository.update({ lockerId: null }, {
     where: { id },
   })
   ctx.body = { data: result[0] }
@@ -463,10 +461,10 @@ router.get('/module/count', async (ctx) => {
 })
 
 router.get('/module/list', async (ctx) => {
-  let where: any = {}
-  let { repositoryId, name } = ctx.query
-  if (repositoryId) where.repositoryId = repositoryId
-  if (name) where.name = { [Op.like]: `%${name}%` }
+  const where: any = {}
+  const { repositoryId, name } = ctx.query
+  if (repositoryId) {where.repositoryId = repositoryId}
+  if (name) {where.name = { [Op.like]: `%${name}%` }}
   ctx.body = {
     data: await Module.findAll({
       attributes: { exclude: [] },
@@ -478,24 +476,24 @@ router.get('/module/list', async (ctx) => {
 router.get('/module/get', async (ctx) => {
   ctx.body = {
     data: await Module.findByPk(+ctx.query.id, {
-      attributes: { exclude: [] }
-    })
+      attributes: { exclude: [] },
+    }),
   }
 })
 
 router.post('/module/create', isLoggedIn, async (ctx, next) => {
-  let creatorId = ctx.session.id
-  let lang = ctx.cookies.get('i18next') || 'en'
-  let body = Object.assign(ctx.request.body, { creatorId })
+  const creatorId = ctx.session.id
+  const lang = (ctx.cookies.get('i18next') || 'en').substring(0, 2)
+  const body = Object.assign(ctx.request.body, { creatorId })
   body.priority = Date.now()
-  let created = await Module.create(body)
-  await initModule(created, lang.substring(0, 2))
+  const created = await Module.create(body)
+  await initModule(created, lang)
   ctx.body = {
-    data: await Module.findByPk(created.id)
+    data: await Module.findByPk(created.id),
   }
   return next()
 }, async (ctx) => {
-  let mod = ctx.body.data
+  const mod = ctx.body.data
   await Logger.create({
     userId: ctx.session.id,
     type: 'create',
@@ -510,20 +508,20 @@ router.post('/module/update', isLoggedIn, async (ctx, next) => {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let mod = await Module.findByPk(id)
+  const mod = await Module.findByPk(id)
   await mod.update({ name, description })
   ctx.request.body.repositoryId = mod.repositoryId
   ctx.body = {
     data: {
       id,
       name,
-      description
+      description,
     },
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) return
-  let mod = ctx.request.body
+  if (ctx.body.data === 0) {return}
+  const mod = ctx.request.body
   await Logger.create({
     userId: ctx.session.id,
     type: 'update',
@@ -551,12 +549,12 @@ router.post('/module/move', isLoggedIn, async ctx => {
 })
 
 router.get('/module/remove', isLoggedIn, async (ctx, next) => {
-  let { id } = ctx.query
+  const { id } = ctx.query
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.MODULE_SET, ctx.session.id, +id)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let result = await Module.destroy({ where: { id } })
+  const result = await Module.destroy({ where: { id } })
   await Interface.destroy({ where: { moduleId: id } })
   await Property.destroy({ where: { moduleId: id } })
   ctx.body = {
@@ -564,9 +562,9 @@ router.get('/module/remove', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) return
+  if (ctx.body.data === 0) {return}
   const id = +ctx.query.id
-  let mod = await Module.findByPk(id, { paranoid: false })
+  const mod = await Module.findByPk(id, { paranoid: false })
   await Logger.create({
     userId: ctx.session.id,
     type: 'delete',
@@ -576,11 +574,11 @@ router.get('/module/remove', isLoggedIn, async (ctx, next) => {
 })
 
 router.post('/module/sort', isLoggedIn, async (ctx) => {
-  let { ids } = ctx.request.body
+  const { ids } = ctx.request.body
   let counter = 1
   for (let index = 0; index < ids.length; index++) {
     await Module.update({ priority: counter++ }, {
-      where: { id: ids[index] }
+      where: { id: ids[index] },
     })
   }
   if (ids && ids.length) {
@@ -599,15 +597,15 @@ router.get('/interface/count', async (ctx) => {
 })
 
 router.get('/interface/list', async (ctx) => {
-  let where: any = {}
-  let { repositoryId, moduleId, name } = ctx.query
+  const where: any = {}
+  const { repositoryId, moduleId, name } = ctx.query
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.REPOSITORY_GET, ctx.session.id, +repositoryId)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  if (repositoryId) where.repositoryId = repositoryId
-  if (moduleId) where.moduleId = moduleId
-  if (name) where.name = { [Op.like]: `%${name}%` }
+  if (repositoryId) {where.repositoryId = repositoryId}
+  if (moduleId) {where.moduleId = moduleId}
+  if (name) {where.name = { [Op.like]: `%${name}%` }}
   ctx.body = {
     data: await Interface.findAll({
       attributes: { exclude: [] },
@@ -619,7 +617,7 @@ router.get('/interface/list', async (ctx) => {
 router.get('/repository/defaultVal/get/:id', async (ctx) => {
   const repositoryId: number = +ctx.params.id
   ctx.body = {
-    data: await DefaultVal.findAll({ where: { repositoryId } })
+    data: await DefaultVal.findAll({ where: { repositoryId } }),
   }
 })
 
@@ -635,7 +633,7 @@ router.post('/repository/defaultVal/update/:id', async (ctx) => {
     return
   }
   await DefaultVal.destroy({
-    where: { repositoryId }
+    where: { repositoryId },
   })
   for (const item of list) {
     await DefaultVal.create({
@@ -655,12 +653,12 @@ router.get('/interface/get', async (ctx) => {
   if (id === undefined || !id) {
     ctx.body = {
       isOk: false,
-      errMsg: '请输入参数id'
+      errMsg: '请输入参数id',
     }
     return
   }
 
-  let itf = await Interface.findByPk(id, {
+  const itf = await Interface.findByPk(id, {
     include: [QueryInclude.Locker],
     attributes: { exclude: [] },
   })
@@ -668,7 +666,7 @@ router.get('/interface/get', async (ctx) => {
   if (!itf) {
     ctx.body = {
       isOk: false,
-      errMsg: `没有找到 id 为 ${id} 的接口`
+      errMsg: `没有找到 id 为 ${id} 的接口`,
     }
     return
   }
@@ -694,9 +692,9 @@ router.get('/interface/get', async (ctx) => {
   properties = properties.map((item: any) => item.toJSON())
   itfJSON['properties'] = properties
 
-  let scopes = ['request', 'response']
+  const scopes = ['request', 'response']
   for (let i = 0; i < scopes.length; i++) {
-    let scopeProperties = properties
+    const scopeProperties = properties
       .filter(p => p.scope === scopes[i])
       .map((item: any) => ({ ...item }))
     itfJSON[scopes[i] + 'Properties'] = Tree.ArrayToTree(scopeProperties).children
@@ -707,19 +705,28 @@ router.get('/interface/get', async (ctx) => {
 })
 
 router.post('/interface/create', isLoggedIn, async (ctx, next) => {
-  let creatorId = ctx.session.id
-  let body = Object.assign(ctx.request.body, { creatorId })
+  const creatorId = ctx.session.id
+  const body = Object.assign(ctx.request.body, { creatorId })
   body.priority = Date.now()
-  let created = await Interface.create(body)
+  let created: Interface | null = null
+  if (body.tmplId > 0) {
+    const createdId = await RepositoryService.moveInterface(MoveOp.COPY, body.tmplId, body.repositoryId, body.moduleId, body.name)
+    const { id, isTmpl, ...updateParams } = body
+    // Interface from template, its isTmpl will be set to false
+    await Interface.update({ ...updateParams, isTmpl: false }, { where: { id: createdId } })
+    created = await Interface.findByPk(createdId)
+  } else {
+    created = await Interface.create(body)
+  }
   // await initInterface(created)
   ctx.body = {
     data: {
       itf: await Interface.findByPk(created.id),
-    }
+    },
   }
   return next()
 }, async (ctx) => {
-  let itf = ctx.body.data
+  const itf = ctx.body.data
   await Logger.create({
     userId: ctx.session.id,
     type: 'create',
@@ -730,34 +737,34 @@ router.post('/interface/create', isLoggedIn, async (ctx, next) => {
 })
 
 router.post('/interface/update', isLoggedIn, async (ctx, next) => {
-  let summary = ctx.request.body
+  const summary = ctx.request.body
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.INTERFACE_SET, ctx.session.id, +summary.id)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
   const itf = await Interface.findByPk(summary.id)
   const itfChangeLog: string[] = []
-  itf.name !== summary.name && itfChangeLog.push(`接口名 \`${itf.name}\` => \`${summary.name}\``)
-  itf.url !== summary.url && itfChangeLog.push(`URL \`${itf.url || '空URL'}\` => \`${summary.url}\``)
+  itf.name !== summary.name && itfChangeLog.push(`[name] \`${itf.name}\` => \`${summary.name}\``)
+  itf.url !== summary.url && itfChangeLog.push(`URL \`${itf.url || '[empty url]'}\` => \`${summary.url}\``)
   itf.method !== summary.method && itfChangeLog.push(`METHOD \`${itf.method}\` => \`${summary.method}\``)
   itfChangeLog.length && await RepositoryService.addHistoryLog({
     entityId: itf.id,
     entityType: Consts.ENTITY_TYPE.INTERFACE,
-    changeLog: `接口${itf.name}(${itf.url || '空URL'}) 变更${itfChangeLog.join(LOG_SEPERATOR)}`,
+    changeLog: `[Interface] ${itf.name}(${itf.url || '[empty url]'}) [modified] ${itfChangeLog.join(LOG_SEPERATOR)}`,
     userId: ctx.session.id,
   })
   await Interface.update(summary, {
-    where: { id: summary.id }
+    where: { id: summary.id },
   })
   ctx.body = {
     data: {
       itf: await Interface.findByPk(summary.id),
-    }
+    },
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) return
-  let itf = ctx.request.body
+  if (ctx.body.data === 0) {return}
+  const itf = ctx.request.body
   await Logger.create({
     userId: ctx.session.id,
     type: 'update',
@@ -786,7 +793,7 @@ router.post('/interface/move', isLoggedIn, async ctx => {
 })
 
 router.get('/interface/remove', async (ctx, next) => {
-  let id = +ctx.query.id
+  const id = +ctx.query.id
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.INTERFACE_SET, ctx.session.id, +id)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
@@ -796,20 +803,20 @@ router.get('/interface/remove', async (ctx, next) => {
   await RepositoryService.addHistoryLog({
     entityId: itf.repositoryId,
     entityType: Consts.ENTITY_TYPE.REPOSITORY,
-    changeLog: `接口 ${itf.name} (${itf.url}) 被删除，数据已备份。`,
+    changeLog: `[Interface] ${itf.name} (${itf.url}) [deleted],[data is backup]。`,
     userId: ctx.session.id,
-    relatedJSONData: JSON.stringify({ "itf": itf, "properties": properties })
+    relatedJSONData: JSON.stringify({ 'itf': itf, 'properties': properties }),
   })
-  let result = await Interface.destroy({ where: { id } })
+  const result = await Interface.destroy({ where: { id } })
   await Property.destroy({ where: { interfaceId: id } })
   ctx.body = {
     data: result,
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) return
+  if (ctx.body.data === 0) {return}
   const id = +ctx.query.id
-  let itf = await Interface.findByPk(id, { paranoid: false })
+  const itf = await Interface.findByPk(id, { paranoid: false })
   await Logger.create({
     userId: ctx.session.id,
     type: 'delete',
@@ -824,7 +831,7 @@ router.get('/__test__', async (ctx) => {
   itf.name = itf.name + '+'
   await itf.save()
   ctx.body = {
-    data: itf.name
+    data: itf.name,
   }
 })
 
@@ -834,7 +841,7 @@ router.post('/interface/lock', async (ctx, next) => {
     return
   }
 
-  let { id } = ctx.request.body
+  const { id } = ctx.request.body
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.INTERFACE_SET, ctx.session.id, +id)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
@@ -843,7 +850,7 @@ router.post('/interface/lock', async (ctx, next) => {
     attributes: ['lockerId'],
     include: [
       QueryInclude.Locker,
-    ]
+    ],
   })
   if (itf.lockerId) { // DONE 2.3 BUG 接口可能被不同的人重复锁定。如果已经被锁定，则忽略。
     ctx.body = {
@@ -857,7 +864,7 @@ router.post('/interface/lock', async (ctx, next) => {
     attributes: ['lockerId'],
     include: [
       QueryInclude.Locker,
-    ]
+    ],
   })
   ctx.body = {
     data: itf.locker,
@@ -871,12 +878,12 @@ router.post('/interface/unlock', async (ctx) => {
     return
   }
 
-  let { id } = ctx.request.body
+  const { id } = ctx.request.body
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.INTERFACE_SET, ctx.session.id, +id)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let itf = await Interface.findByPk(id, { attributes: ['lockerId'] })
+  const itf = await Interface.findByPk(id, { attributes: ['lockerId'] })
   if (itf.lockerId !== ctx.session.id) { // DONE 2.3 BUG 接口可能被其他人解锁。如果不是同一个用户，则忽略。
     ctx.body = {
       isOk: false,
@@ -888,22 +895,22 @@ router.post('/interface/unlock', async (ctx) => {
     // tslint:disable-next-line:no-null-keyword
     lockerId: null,
   }, {
-    where: { id }
+    where: { id },
   })
 
   ctx.body = {
     data: {
       isOk: true,
-    }
+    },
   }
 })
 
 router.post('/interface/sort', async (ctx) => {
-  let { ids } = ctx.request.body
+  const { ids } = ctx.request.body
   let counter = 1
   for (let index = 0; index < ids.length; index++) {
     await Interface.update({ priority: counter++ }, {
-      where: { id: ids[index] }
+      where: { id: ids[index] },
     })
   }
   ctx.body = {
@@ -913,17 +920,17 @@ router.post('/interface/sort', async (ctx) => {
 
 router.get('/property/count', async (ctx) => {
   ctx.body = {
-    data: 0
+    data: 0,
   }
 })
 
 router.get('/property/list', async (ctx) => {
-  let where: any = {}
-  let { repositoryId, moduleId, interfaceId, name } = ctx.query
-  if (repositoryId) where.repositoryId = repositoryId
-  if (moduleId) where.moduleId = moduleId
-  if (interfaceId) where.interfaceId = interfaceId
-  if (name) where.name = { [Op.like]: `%${name}%` }
+  const where: any = {}
+  const { repositoryId, moduleId, interfaceId, name } = ctx.query
+  if (repositoryId) {where.repositoryId = repositoryId}
+  if (moduleId) {where.moduleId = moduleId}
+  if (interfaceId) {where.interfaceId = interfaceId}
+  if (name) {where.name = { [Op.like]: `%${name}%` }}
   ctx.body = {
     data: await Property.findAll({ where }),
   }
@@ -933,19 +940,19 @@ router.get('/property/get', async (ctx) => {
   const id = +ctx.query.id
   ctx.body = {
     data: await Property.findByPk(id, {
-      attributes: { exclude: [] }
-    })
+      attributes: { exclude: [] },
+    }),
   }
 })
 
 router.post('/property/create', isLoggedIn, async (ctx) => {
-  let creatorId = ctx.session.id
-  let body = Object.assign(ctx.request.body, { creatorId })
-  let created = await Property.create(body)
+  const creatorId = ctx.session.id
+  const body = Object.assign(ctx.request.body, { creatorId })
+  const created = await Property.create(body)
   ctx.body = {
     data: await Property.findByPk(created.id, {
-      attributes: { exclude: [] }
-    })
+      attributes: { exclude: [] },
+    }),
   }
 })
 
@@ -953,9 +960,9 @@ router.post('/property/update', isLoggedIn, async (ctx) => {
   let properties = ctx.request.body // JSON.parse(ctx.request.body)
   properties = Array.isArray(properties) ? properties : [properties]
   let result = 0
-  for (let item of properties) {
-    let property = _.pick(item, Object.keys(Property.rawAttributes))
-    let affected = await Property.update(property, {
+  for (const item of properties) {
+    const property = _.pick(item, Object.keys(Property.rawAttributes))
+    const affected = await Property.update(property, {
       where: { id: property.id },
     })
     result += affected[0]
@@ -969,7 +976,8 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
   const itfId = +ctx.query.itf
   let needBackup = false
   let changeCount = 0
-  let { properties, summary } = ctx.request.body as { properties: Property[], summary: Interface }
+  let { properties } = ctx.request.body as { properties: Property[]; summary: Interface }
+  const { summary } = ctx.request.body as { properties: Property[]; summary: Interface }
   properties = Array.isArray(properties) ? properties : [properties]
 
   let itf = await Interface.findByPk(itfId)
@@ -1002,20 +1010,20 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
         )
   */
 
-  const pLog = (p: Property, title: string) => `\`${title}\`${p.scope === 'request' ? '请求' : '响应'}参数\`${p.name}\`${p.description ? '(' + p.description + ')' : ''}`
+  const pLog = (p: Property, title: string) => ` \`${title}\` ${p.scope === 'request' ? '[request]' : '[response]'} [parameter] \`${p.name}\` ${p.description ? '(' + p.description + ')' : ''}`
 
   const existingProperties = properties.filter((item: any) => !item.memory)
   const existingPropertyIds = existingProperties.map(x => x.id)
 
   const originalProperties = await Property.findAll({ where: { interfaceId: itfId } })
 
-  const backupJSON = JSON.stringify({ "itf": itf, "properties": originalProperties })
+  const backupJSON = JSON.stringify({ 'itf': itf, 'properties': originalProperties })
 
   const deletedProperties = originalProperties.filter(x => existingPropertyIds.indexOf(x.id) === -1)
 
   const deletedPropertyLog: string[] = []
   for (const deletedProperty of deletedProperties) {
-    deletedPropertyLog.push(pLog(deletedProperty, '删除了'))
+    deletedPropertyLog.push(pLog(deletedProperty, ' [deleted] '))
   }
   changeCount += deletedProperties.length
   deletedPropertyLog.length && itfPropertiesChangeLog.push(deletedPropertyLog.join(LOG_SUB_SEPERATOR))
@@ -1023,43 +1031,46 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
   let result = await Property.destroy({
     where: {
       id: { [Op.notIn]: existingProperties.map((item: any) => item.id) },
-      interfaceId: itfId
-    }
+      interfaceId: itfId,
+    },
   })
 
   const updatedPropertyLog: string[] = []
   // 更新已存在的属性
-  for (let item of existingProperties) {
+  for (const item of existingProperties) {
     const changed: string[] = []
     const o = originalProperties.filter(x => x.id === item.id)[0]
     if (o) {
       if (o.name !== item.name) {
-        changed.push(`变量名${o.name} => ${item.name}`)
+        changed.push(`[name] ${o.name} => ${item.name}`)
+      }
+      if (o.required !== item.required) {
+        changed.push(`[require] ${o.required ? 'true' : 'false'} => ${item.required}`)
       }
       // mock rules 不记入日志
       if (o.type !== item.type) {
-        changed.push(`类型${o.type} => ${item.type}`)
+        changed.push(`[type] ${o.type} => ${item.type}`)
       }
-      changed.length && updatedPropertyLog.push(`${pLog(item, '更新了')} ${changed.join(' ')}`)
+      changed.length && updatedPropertyLog.push(`${pLog(item, '[updated]')} ${changed.join(' ')}`)
       changeCount += changed.length
     }
-    let affected = await Property.update(item, {
+    const affected = await Property.update(item, {
       where: { id: item.id },
     })
     result += affected[0]
   }
   updatedPropertyLog.length && itfPropertiesChangeLog.push(updatedPropertyLog.join(LOG_SUB_SEPERATOR))
   // 插入新增加的属性
-  let newProperties = properties.filter((item: any) => item.memory)
-  let memoryIdsMap: any = {}
+  const newProperties = properties.filter((item: any) => item.memory)
+  const memoryIdsMap: any = {}
   const addedPropertyLog: string[] = []
-  for (let item of newProperties) {
-    let created = await Property.create(Object.assign({}, item, {
+  for (const item of newProperties) {
+    const created = await Property.create(Object.assign({}, item, {
       id: undefined,
       parentId: -1,
-      priority: item.priority || Date.now()
+      priority: item.priority || Date.now(),
     }))
-    addedPropertyLog.push(pLog(item, '新增了'))
+    addedPropertyLog.push(pLog(item, '[added]'))
     memoryIdsMap[item.id] = created.id
     item.id = created.id
     result += 1
@@ -1067,8 +1078,8 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
   changeCount += newProperties.length
   addedPropertyLog.length && itfPropertiesChangeLog.push(addedPropertyLog.join(LOG_SUB_SEPERATOR))
   // 同步 parentId
-  for (let item of newProperties) {
-    let parentId = memoryIdsMap[item.parentId] || item.parentId
+  for (const item of newProperties) {
+    const parentId = memoryIdsMap[item.parentId] || item.parentId
     await Property.update({ parentId }, {
       where: { id: item.id },
     })
@@ -1085,7 +1096,7 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
     await RepositoryService.addHistoryLog({
       entityId: itf.id,
       entityType: Consts.ENTITY_TYPE.INTERFACE,
-      changeLog: `接口 ${itf.name}(${itf.url}) 参数变更： ${itfPropertiesChangeLog.join(LOG_SEPERATOR)}${needBackup ? ', 改动较大已备份数据。' : ''}`,
+      changeLog: `[Interface] ${itf.name}(${itf.url}) [parameter] [modified]： ${itfPropertiesChangeLog.join(LOG_SEPERATOR)}${needBackup ? ', [data is backup]。' : ''}`,
       userId: ctx.session.id,
       ...needBackup ? { relatedJSONData: backupJSON } : {},
     })
@@ -1095,13 +1106,13 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
     data: {
       result,
       properties: itf.properties,
-    }
+    },
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) return
-  let itf = await Interface.findByPk(ctx.query.itf as string, {
-    attributes: { exclude: [] }
+  if (ctx.body.data === 0) {return}
+  const itf = await Interface.findByPk(ctx.query.itf as string, {
+    attributes: { exclude: [] },
   })
   await Logger.create({
     userId: ctx.session.id,
@@ -1113,7 +1124,7 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
 })
 
 router.get('/property/remove', isLoggedIn, async (ctx) => {
-  let { id } = ctx.query
+  const { id } = ctx.query
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.PROPERTY_SET, ctx.session.id, +id)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
@@ -1126,20 +1137,22 @@ router.get('/property/remove', isLoggedIn, async (ctx) => {
 })
 
 router.post('/repository/import', isLoggedIn, async (ctx) => {
-  const { docUrl, orgId, version, projectData } = ctx.request.body
-  if (!await AccessUtils.canUserAccess(ACCESS_TYPE.ORGANIZATION_SET, ctx.session.id, orgId)) {
+  const { orgId, projectData, repositoryId, swagger, cover } = ctx.request.body
+  if (orgId && !await AccessUtils.canUserAccess(ACCESS_TYPE.ORGANIZATION_SET, ctx.session.id, orgId)) {
+    ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
+    return
+  }
+  // 权限判断
+  if (repositoryId && !await AccessUtils.canUserAccess(ACCESS_TYPE.REPOSITORY_SET, ctx.session.id, repositoryId)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
   let success = false
   let message = ''
   try {
-    if (+version === 3) {
-      await MigrateService.importRepoFromJSON(JSON5.parse(projectData).data, ctx.session.id, true, orgId)
-      success = true
-    } else {
-      success = await MigrateService.importRepoFromRAP1DocUrl(orgId, ctx.session.id, docUrl, +version, projectData)
-    }
+    const data = projectData ? JSON5.parse(projectData).data : swagger
+    await MigrateService.importRepoFromJSON(data, ctx.session.id, !!!repositoryId, repositoryId || orgId, cover)
+    success = true
   } catch (ex) {
     success = false
     message = ex.message
@@ -1151,26 +1164,33 @@ router.post('/repository/import', isLoggedIn, async (ctx) => {
 })
 
 router.post('/repository/importswagger', isLoggedIn, async (ctx) => {
-  const { orgId, repositoryId, swagger, version = 1, mode = 'manual' } = ctx.request.body
+  const { orgId, repositoryId, swagger, version = 1, mode = 'manual', cover } = ctx.request.body
   // 权限判断
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.REPOSITORY_SET, ctx.session.id, repositoryId)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
 
-  const result = await MigrateService.importRepoFromSwaggerDocUrl(orgId, ctx.session.id, swagger, version, mode, repositoryId)
+  const result = await MigrateService.importRepoFromSwaggerDocUrl(orgId, ctx.session.id, swagger, version, mode, repositoryId, cover)
 
   ctx.body = {
-    isOk: result.code,
+    isOk: result.code === 'success',
     message: result.code === 'success' ? '导入成功' : '导入失败',
     repository: {
       id: 1,
-    }
+    },
   }
 })
 
 router.post('/repository/importRAP2Backup', isLoggedIn, async (ctx) => {
-  const { repositoryId, swagger, modId } = ctx.request.body
+  const { repositoryId, swagger, modId, cover } = ctx.request.body
+  if (!modId) {
+    ctx.body = {
+      isOk: false,
+      message: `请先添加模块`,
+    }
+    return
+  }
   // 权限判断
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.REPOSITORY_SET, ctx.session.id, repositoryId)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
@@ -1178,17 +1198,17 @@ router.post('/repository/importRAP2Backup', isLoggedIn, async (ctx) => {
   }
 
   try {
-    await MigrateService.importInterfaceFromJSON(swagger, ctx.session.id, repositoryId, modId)
+    await MigrateService.importInterfaceFromJSON(swagger, ctx.session.id, repositoryId, modId, cover)
     ctx.body = {
-      isOk: 'success',
+      isOk: true,
       message: '导入成功',
       repository: {
         id: 1,
-      }
+      },
     }
   } catch (ex) {
     ctx.body = {
-      isOk: 'failure',
+      isOk: false,
       message: `导入失败: ${ex.message}`,
     }
   }
@@ -1212,7 +1232,7 @@ router.post('/repository/importJSON', isLoggedIn, async ctx => {
   } catch (error) {
     ctx.body = {
       isOk: false,
-      message: '服务器错误，导入失败'
+      message: '服务器错误，导入失败',
     }
     throw (error)
   }
@@ -1239,7 +1259,7 @@ router.get('/:type/history/:itfId', isLoggedIn, async ctx => {
   }
   ctx.body = {
     isOk: true,
-    data: await RepositoryService.getHistoryLog(+ctx.params.itfId, type, pager)
+    data: await RepositoryService.getHistoryLog(+ctx.params.itfId, type, pager),
   }
 })
 
@@ -1256,3 +1276,5 @@ router.get('/interface/backup/JSONData/:id', isLoggedIn, async ctx => {
   ctx.set('Content-type', 'text/html; charset=UTF-8')
   ctx.body = await RepositoryService.getInterfaceJSONData(itfId)
 })
+
+

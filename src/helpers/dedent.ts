@@ -7,8 +7,8 @@ export default function dedent(
   templateStrings: TemplateStringsArray | string,
   ...values: any[]
 ) {
-  let matches = []
-  let strings =
+  const matches = []
+  const strings =
     typeof templateStrings === 'string'
       ? [templateStrings]
       : templateStrings.slice()
@@ -30,8 +30,8 @@ export default function dedent(
 
   // 3. Remove the common indentation from all strings.
   if (matches.length) {
-    let size = Math.min(...matches.map(value => value.length - 1))
-    let pattern = new RegExp(`\n[\t ]{${size}}`, 'g')
+    const size = Math.min(...matches.map(value => value.length - 1))
+    const pattern = new RegExp(`\n[\t ]{${size}}`, 'g')
 
     for (let i = 0; i < strings.length; i++) {
       strings[i] = strings[i].replace(pattern, '\n')
@@ -42,11 +42,11 @@ export default function dedent(
   strings[0] = strings[0].replace(/^\r?\n/, '')
 
   // 5. Perform interpolation.
-  let string = strings[0]
+  let str = strings[0]
 
   for (let i = 0; i < values.length; i++) {
-    string += values[i] + strings[i + 1]
+    str += values[i] + strings[i + 1]
   }
 
-  return string
+  return str
 }

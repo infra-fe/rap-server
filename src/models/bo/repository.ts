@@ -19,7 +19,7 @@ export default class Repository extends Model<Repository> {
   static async bulkDeleteCache(options: any) {
     const id = options && options.attributes && options.attributes.id
     if (id) {
-     await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, id)
+      await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, id)
     }
   }
 
@@ -88,5 +88,9 @@ export default class Repository extends Model<Repository> {
 
   @BelongsToMany(() => Repository, () => RepositoriesCollaborators, 'collaboratorId')
   repositories: Repository[]
+
+  collaboratorIdstring?: string
+  memberIds?: number[]
+  collaboratorIds?: number[]
 
 }

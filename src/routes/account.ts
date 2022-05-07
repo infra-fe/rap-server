@@ -14,18 +14,16 @@ import * as moment from 'moment'
 import RedisService, { CACHE_KEY, DEFAULT_CACHE_VAL } from '../service/redis'
 
 
-
-
 router.get('/app/get', async (ctx, next) => {
-  let data: any = {}
-  let query = ctx.query
-  let hooks: any = {
+  const data: any = {}
+  const query = ctx.query
+  const hooks: any = {
     user: User,
   }
-  for (let name in hooks) {
-    if (!query[name]) continue
+  for (const name in hooks) {
+    if (!query[name]) { continue }
     data[name] = await hooks[name].findByPk(query[name], {
-      attributes: { exclude: [] }
+      attributes: { exclude: [] },
     })
   }
   ctx.body = {
@@ -46,20 +44,20 @@ router.get('/account/list', isLoggedIn, async (ctx) => {
   //   ctx.body = COMMON_ERROR_RES.ACCESS_DENY
   //   return
   // }
-  let where = {}
-  let { name } = ctx.query
+  const where = {}
+  const { name } = ctx.query
   if (name) {
     Object.assign(where, {
       [Op.or]: [
         { fullname: { [Op.like]: `%${name}%` } },
-        { email: name },
+        { email: { [Op.like]: `%${name}%` } },
       ],
     })
   }
-  let options = { where }
-  let total = await User.count(options)
-  let limit = Math.min(+ctx.query.limit ?? 10, 100)
-  let pagination = new Pagination(total, ctx.query.cursor || 1, limit)
+  const options = { where }
+  const total = await User.count(options)
+  const limit = Math.min(ctx.query.limit ? +ctx.query.limit : 10, 100)
+  const pagination = new Pagination(total, ctx.query.cursor || 1, limit)
   ctx.body = {
     data: await User.findAll({
       ...options, ...{
@@ -67,22 +65,22 @@ router.get('/account/list', isLoggedIn, async (ctx) => {
         offset: pagination.start,
         limit: pagination.limit,
         order: [['id', 'DESC']],
-      }
+      },
     }),
-    pagination: pagination
+    pagination: pagination,
   }
 })
 
 router.get('/account/info', async (ctx) => {
   ctx.body = {
     data: ctx.session.id ? await User.findByPk(ctx.session.id, {
-      attributes: QueryInclude.User.attributes
-    }) : undefined
+      attributes: QueryInclude.User.attributes,
+    }) : undefined,
   }
 })
 
 router.post('/account/login', async (ctx) => {
-  let { email, password, captcha } = ctx.request.body
+  const { email, password, captcha } = ctx.request.body
   let result, errMsg
   if (process.env.TEST_MODE !== 'true' &&
     (!captcha || !ctx.session.captcha || captcha.trim().toLowerCase() !== ctx.session.captcha.toLowerCase())) {
@@ -96,7 +94,7 @@ router.post('/account/login', async (ctx) => {
       ctx.session.id = result.id
       ctx.session.fullname = result.fullname
       ctx.session.email = result.email
-      let app: any = ctx.app
+      const app = ctx.app
       app.counter.users[result.fullname] = true
     } else {
       errMsg = '账号或密码错误'
@@ -109,14 +107,14 @@ router.post('/account/login', async (ctx) => {
 
 router.get('/captcha_data', ctx => {
   ctx.body = {
-    data: JSON.stringify(ctx.session)
+    data: JSON.stringify(ctx.session),
   }
 })
 
 router.get('/account/logout', async (ctx) => {
-  let app: any = ctx.app
+  const app = ctx.app
   delete app.counter.users[ctx.session.email]
-  let id = ctx.session.id
+  const id = ctx.session.id
   Object.assign(ctx.session, { id: undefined, fullname: undefined, email: undefined })
   ctx.body = {
     data: await { id },
@@ -124,8 +122,8 @@ router.get('/account/logout', async (ctx) => {
 })
 
 router.post('/account/register', async (ctx) => {
-  let { fullname, email, password } = ctx.request.body
-  let exists = await User.findAll({
+  const { fullname, email, password } = ctx.request.body
+  const exists = await User.findAll({
     where: { email },
   })
   if (exists && exists.length) {
@@ -139,13 +137,13 @@ router.post('/account/register', async (ctx) => {
   }
 
   // login automatically after register
-  let result = await User.create({ fullname, email, password: md5(md5(password)) })
+  const result = await User.create({ fullname, email, password: md5(md5(password)) })
 
   if (result) {
     ctx.session.id = result.id
     ctx.session.fullname = result.fullname
     ctx.session.email = result.email
-    let app: any = ctx.app
+    const app = ctx.app
     app.counter.users[result.fullname] = true
   }
 
@@ -176,8 +174,8 @@ router.post('/account/update', async (ctx) => {
   ctx.body = {
     data: {
       isOk,
-      errMsg
-    }
+      errMsg,
+    },
   }
 })
 
@@ -220,7 +218,7 @@ router.post('/account/fetchUserSettings', isLoggedIn, async (ctx) => {
   if (!keys || !keys.length) {
     ctx.body = {
       isOk: false,
-      errMsg: 'error'
+      errMsg: 'error',
     }
     return
   }
@@ -247,10 +245,10 @@ router.post('/account/updateUserSetting/:key', isLoggedIn, async (ctx) => {
 })
 
 // TODO 2.3 账户通知
-let NOTIFICATION_EXCLUDE_ATTRIBUTES: any = []
+const NOTIFICATION_EXCLUDE_ATTRIBUTES: any = []
 router.get('/account/notification/list', async (ctx) => {
-  let total = await Notification.count()
-  let pagination = new Pagination(total, ctx.query.cursor || 1, ctx.query.limit || 10)
+  const total = await Notification.count()
+  const pagination = new Pagination(total, ctx.query.cursor || 1, ctx.query.limit || 10)
   ctx.body = {
     data: await Notification.findAll({
       attributes: { exclude: NOTIFICATION_EXCLUDE_ATTRIBUTES },
@@ -288,25 +286,25 @@ router.get('/account/logger', async (ctx) => {
     ctx.body = {
       data: {
         isOk: false,
-        errMsg: 'not login'
-      }
+        errMsg: 'not login',
+      },
     }
     return
   }
-  let auth = await User.findByPk(ctx.session.id)
-  let repositories: Model<Repository>[] = [...(<Model<Repository>[]>await auth.$get('ownedRepositories')), ...(<Model<Repository>[]>await auth.$get('joinedRepositories'))]
-  let organizations: Model<Organization>[] = [...(<Model<Organization>[]>await auth.$get('ownedOrganizations')), ...(<Model<Organization>[]>await auth.$get('joinedOrganizations'))]
+  const auth = await User.findByPk(ctx.session.id)
+  const repositories: Array<Model<Repository>> = [...await auth.$get('ownedRepositories'), ...await auth.$get('joinedRepositories')]
+  const organizations: Array<Model<Organization>> = [...await auth.$get('ownedOrganizations'), ...await auth.$get('joinedOrganizations')]
 
-  let where: any = {
+  const where: any = {
     [Op.or]: [
       { userId: ctx.session.id },
       { repositoryId: repositories.map(item => item.id) },
       { organizationId: organizations.map(item => item.id) },
     ],
   }
-  let total = await Logger.count({ where })
-  let pagination = new Pagination(total, ctx.query.cursor || 1, ctx.query.limit || 100)
-  let logs = await Logger.findAll({
+  const total = await Logger.count({ where })
+  const pagination = new Pagination(total, ctx.query.cursor || 1, ctx.query.limit || 100)
+  const logs = await Logger.findAll({
     where,
     attributes: {},
     include: [
@@ -353,7 +351,7 @@ router.post('/account/reset', async (ctx) => {
         data: {
           isOk: false,
           errMsg: '您的邮箱没被注册过。',
-        }
+        },
       }
       return
     }
@@ -363,7 +361,7 @@ router.post('/account/reset', async (ctx) => {
       data: {
         isOk: true,
         data: newPassword,
-      }
+      },
     }
   } else {
     const resetCode = ctx.session.resetCode = Math.floor(Math.random() * 999999)
@@ -371,13 +369,13 @@ router.post('/account/reset', async (ctx) => {
     ctx.body = {
       data: {
         isOk: true,
-      }
+      },
     }
   }
 })
 
 router.post('/account/findpwd', async (ctx) => {
-  let { email, captcha } = ctx.request.body
+  const { email, captcha } = ctx.request.body
   let user, errMsg
   if (process.env.TEST_MODE !== 'true' &&
     (!captcha || !ctx.session.captcha || captcha.trim().toLowerCase() !== ctx.session.captcha.toLowerCase())) {
@@ -389,24 +387,24 @@ router.post('/account/findpwd', async (ctx) => {
     })
     if (user) {
       // 截取ID最后两位*日期字符串 作为返回链接的过期校验
-      let idstr = user.id.toString()
-      let timeCode = (parseInt(moment().add(60, 'minutes').format('YYMMDDHHmmss')) * parseInt(idstr.substr(idstr.length - 2))).toString()
-      let token = md5(user.email + user.id + timeCode + String(Math.floor(Math.random() * 99999999)))
+      const idstr = user.id.toString()
+      const timeCode = (parseInt(moment().add(60, 'minutes').format('YYMMDDHHmmss'), 10) * parseInt(idstr.substr(idstr.length - 2), 10)).toString()
+      const token = md5(user.email + user.id + timeCode + String(Math.floor(Math.random() * 99999999)))
       await RedisService.setCache(CACHE_KEY.PWDRESETTOKEN_GET, token, user.id)
-      let link = `${ctx.headers.origin}/account/resetpwd?code=${timeCode}&email=${email}&token=${token}`
-      let content = MailService.mailFindpwdTemp.replace(/{=EMAIL=}/g, user.email).replace(/{=URL=}/g, link).replace(/{=NAME=}/g, user.fullname)
-      MailService.send(email, "RAP2：重新设置您的密码", content)
+      const link = `${ctx.headers.origin}/account/resetpwd?code=${timeCode}&email=${email}&token=${token}`
+      const content = MailService.mailFindpwdTemp.replace(/{=EMAIL=}/g, user.email).replace(/{=URL=}/g, link).replace(/{=NAME=}/g, user.fullname)
+      MailService.send(email, 'RAP2：重新设置您的密码', content)
     } else {
       errMsg = '账号不存在'
     }
   }
   ctx.body = {
-    data: !errMsg ? { isOk: true } : { isOk: false, errMsg }
+    data: !errMsg ? { isOk: true } : { isOk: false, errMsg },
   }
 })
 
 router.post('/account/findpwd/reset', async (ctx) => {
-  let { code, email, captcha, token, password } = ctx.request.body
+  const { code, email, captcha, token, password } = ctx.request.body
   let user, errMsg
   if (!code || !email || !captcha || !token || !password) {
     errMsg = '参数错误'
@@ -428,14 +426,14 @@ router.post('/account/findpwd/reset', async (ctx) => {
     else {
       const tokenCache = await RedisService.getCache(CACHE_KEY.PWDRESETTOKEN_GET, user.id)
       if (!tokenCache || tokenCache !== token) {
-        errMsg = "参数错误"
+        errMsg = '参数错误'
       }
       else {
         RedisService.delCache(CACHE_KEY.PWDRESETTOKEN_GET, user.id)
-        let idstr = user.id.toString()
-        let timespan = parseInt(code) / parseInt(idstr.substr(idstr.length - 2))
-        if (timespan < parseInt(moment().format('YYMMDDHHmmss'))) {
-          errMsg = "此链接已超时，请重新发送重置密码邮件"
+        const idstr = user.id.toString()
+        const timespan = parseInt(code, 10) / parseInt(idstr.substr(idstr.length - 2), 10)
+        if (timespan < parseInt(moment().format('YYMMDDHHmmss'), 10)) {
+          errMsg = '此链接已超时，请重新发送重置密码邮件'
         }
         else {
           user.password = md5(md5(password))
@@ -445,13 +443,13 @@ router.post('/account/findpwd/reset', async (ctx) => {
     }
   }
   ctx.body = {
-    data: !errMsg ? { isOk: true } : { isOk: false, errMsg }
+    data: !errMsg ? { isOk: true } : { isOk: false, errMsg },
   }
 })
 
 router.post('/account/updateAccount', async ctx => {
   try {
-    const { password, fullname } = ctx.request.body as { password: string, fullname: string }
+    const { password, fullname } = ctx.request.body as { password: string; fullname: string }
     if (!ctx.session?.id) {
       throw new Error('需先登录才能操作')
     }
@@ -464,7 +462,7 @@ router.post('/account/updateAccount', async ctx => {
     }
     await user.save()
     ctx.body = {
-      isOk: true
+      isOk: true,
     }
   } catch (ex) {
     ctx.body = {

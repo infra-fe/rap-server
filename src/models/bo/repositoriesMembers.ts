@@ -6,10 +6,10 @@ export default class RepositoriesMembers extends Model<RepositoriesMembers> {
   @ForeignKey(() => User)
   @PrimaryKey
   @Column
-  userId: number
+    userId: number
 
   @ForeignKey(() => Repository)
   @PrimaryKey
   @Column
-  repositoryId: number
+    repositoryId: number
 }

@@ -1,11 +1,11 @@
-let pathToRegexp = require('path-to-regexp')
+const { pathToRegexp } = require('path-to-regexp')
 
 export default class UrlUtils {
 
   public static getRelative = (url: string) => {
     url = url.toLowerCase()
     const prefixes = ['https://', 'http://']
-    for (let item of prefixes) {
+    for (const item of prefixes) {
       if (url.indexOf(item) > -1) {
         url = url.substring(item.length)
         if (url.indexOf('/') > -1) {
@@ -19,7 +19,7 @@ export default class UrlUtils {
     if (url.indexOf('?') > -1) {
       url = url.substring(0, url.indexOf('?'))
     }
-    if (url[0] !== '/') url = '/' + url
+    if (url[0] !== '/') {url = '/' + url}
     return url
   }
 
@@ -32,7 +32,7 @@ export default class UrlUtils {
   public static urlMatchesPattern = (url: string, pattern: string) => {
     url = UrlUtils.getRelative(url)
     pattern = UrlUtils.getRelative(pattern)
-    let re = pathToRegexp(pattern)
+    const re = pathToRegexp(pattern)
     return re.test(url)
   }
 

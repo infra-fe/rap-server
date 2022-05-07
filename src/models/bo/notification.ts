@@ -6,30 +6,30 @@ export default class Notification extends Model<Notification> {
   @AutoIncrement
   @PrimaryKey
   @Column
-  id: number
+    id: number
 
   @Column({ comment: 'sender' })
-  fromId: number
+    fromId: number
 
   @AllowNull(false)
   @Column({ comment: 'receiver' })
-  toId: number
+    toId: number
 
   @AllowNull(false)
   @Column({ comment: 'msg type' })
-  type: string
+    type: string
 
   @Column(DataType.STRING(128))
-  param1: string
+    param1: string
 
   @Column(DataType.STRING(128))
-  param2: string
+    param2: string
 
   @Column(DataType.STRING(128))
-  param3: string
+    param3: string
 
   @AllowNull(false)
   @Default(false)
   @Column
-  readed: boolean
+    readed: boolean
 }

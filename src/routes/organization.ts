@@ -10,15 +10,15 @@ import { AccessUtils, ACCESS_TYPE } from './utils/access'
 import { COMMON_ERROR_RES } from './utils/const'
 
 router.get('/app/get', async (ctx, next) => {
-  let data: any = {}
-  let query = ctx.query
-  let hooks: any = {
+  const data: any = {}
+  const query = ctx.query
+  const hooks: any = {
     organization: Organization,
   }
-  for (let name in hooks) {
-    if (!query[name]) continue
+  for (const name in hooks) {
+    if (!query[name]) {continue}
     data[name] = await hooks[name].findByPk(query[name], {
-      attributes: { exclude: [] }
+      attributes: { exclude: [] },
     })
   }
   ctx.body = {
@@ -49,9 +49,9 @@ router.get('/organization/list', async (ctx) => {
     include: [
       QueryInclude.Creator,
       QueryInclude.Owner,
-      QueryInclude.Members
+      QueryInclude.Members,
     ],
-    order: [['updatedAt', 'desc']]
+    order: [['updatedAt', 'desc']],
   }
   const organizations = await Organization.findAll(options)
   ctx.body = {
@@ -60,50 +60,50 @@ router.get('/organization/list', async (ctx) => {
   }
 })
 router.get('/organization/owned', isLoggedIn, async (ctx) => {
-  let where = {}
-  let { name } = ctx.query
+  const where = {}
+  const { name } = ctx.query
   if (name) {
     Object.assign(where, {
       [Op.or]: [
         { name: { [Op.like]: `%${name}%` } },
-        { id: name } // name => id
-      ]
+        { id: name }, // name => id
+      ],
     })
   }
 
-  let auth = await User.findByPk(ctx.session.id)
-  let options: any = {
+  const auth = await User.findByPk(ctx.session.id)
+  const options: any = {
     where,
     attributes: { exclude: [] },
     include: [QueryInclude.Creator, QueryInclude.Owner, QueryInclude.Members],
     order: [['updatedAt', 'DESC']],
   }
-  let owned = await auth.$get('ownedOrganizations', options)
+  const owned = await auth.$get('ownedOrganizations', options)
   ctx.body = {
     data: owned,
     pagination: undefined,
   }
 })
 router.get('/organization/joined', isLoggedIn, async (ctx) => {
-  let where = {}
-  let { name } = ctx.query
+  const where = {}
+  const { name } = ctx.query
   if (name) {
     Object.assign(where, {
       [Op.or]: [
         { name: { [Op.like]: `%${name}%` } },
-        { id: name } // name => id
-      ]
+        { id: name }, // name => id
+      ],
     })
   }
 
-  let auth = await User.findByPk(ctx.session.id)
-  let options: object = {
+  const auth = await User.findByPk(ctx.session.id)
+  const options: object = {
     where,
     attributes: { exclude: [] },
     include: [QueryInclude.Creator, QueryInclude.Owner, QueryInclude.Members],
     order: [['updatedAt', 'DESC']],
   }
-  let joined = await auth.$get('joinedOrganizations', options)
+  const joined = await auth.$get('joinedOrganizations', options)
   // await auth.getOwnedOrganizations()
   // await auth.getJoinedOrganizations()
   ctx.body = {
@@ -126,14 +126,14 @@ router.get('/organization/get', async (ctx) => {
   }
 })
 router.post('/organization/create', isLoggedIn, async (ctx) => {
-  let creatorId = ctx.session.id
-  let body = Object.assign({}, ctx.request.body, { creatorId, ownerId: creatorId })
-  let created = await Organization.create(body)
+  const creatorId = ctx.session.id
+  const body = Object.assign({}, ctx.request.body, { creatorId, ownerId: creatorId })
+  const created = await Organization.create(body)
   if (body.memberIds) {
-    let members = await User.findAll({ where: { id: body.memberIds } })
+    const members = await User.findAll({ where: { id: body.memberIds } })
     await created.$set('members', members)
   }
-  let filled = await Organization.findByPk(created.id, {
+  const filled = await Organization.findByPk(created.id, {
     attributes: { exclude: [] },
     include: [QueryInclude.Creator, QueryInclude.Owner, QueryInclude.Members],
   } as any)
@@ -142,7 +142,7 @@ router.post('/organization/create', isLoggedIn, async (ctx) => {
   }
 })
 router.post('/organization/update', isLoggedIn, async (ctx, next) => {
-  let body = Object.assign({}, ctx.request.body)
+  const body = Object.assign({}, ctx.request.body)
   const organizationId = +body.id
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.ORGANIZATION_SET, ctx.session.id, organizationId)) {
     ctx.body = COMMON_ERROR_RES.ACCESS_DENY
@@ -151,10 +151,10 @@ router.post('/organization/update', isLoggedIn, async (ctx, next) => {
   delete body.creatorId
   // DONE 2.2 支持转移团队
   // delete body.ownerId
-  let updated = await Organization.update(body, { where: { id: body.id } })
+  const updated = await Organization.update(body, { where: { id: body.id } })
   if (body.memberIds) {
-    let reloaded = await Organization.findByPk(body.id)
-    let members = await User.findAll({ where: { id: body.memberIds } })
+    const reloaded = await Organization.findByPk(body.id)
+    const members = await User.findAll({ where: { id: body.memberIds } })
     ctx.prevAssociations = await reloaded.$get('members')
     await reloaded.$set('members', members)
     ctx.nextAssociations = await reloaded.$get('members')
@@ -164,7 +164,7 @@ router.post('/organization/update', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  let { id } = ctx.request.body
+  const { id } = ctx.request.body
   // 团队改
   await Logger.create({
     userId: ctx.session.id,
@@ -172,45 +172,45 @@ router.post('/organization/update', isLoggedIn, async (ctx, next) => {
     organizationId: id,
   })
   // 加入 & 退出
-  if (!ctx.prevAssociations || !ctx.nextAssociations) return
-  let prevIds = ctx.prevAssociations.map((item: any) => item.id)
-  let nextIds = ctx.nextAssociations.map((item: any) => item.id)
-  let joined = _.difference(nextIds, prevIds)
-  let exited = _.difference(prevIds, nextIds)
-  let creatorId = ctx.session.id
-  for (let userId of joined) {
+  if (!ctx.prevAssociations || !ctx.nextAssociations) {return}
+  const prevIds = ctx.prevAssociations.map((item: any) => item.id)
+  const nextIds = ctx.nextAssociations.map((item: any) => item.id)
+  const joined: number[] = _.difference(nextIds, prevIds)
+  const exited: number[] = _.difference(prevIds, nextIds)
+  const creatorId = ctx.session.id
+  for (const userId of joined) {
     await Logger.create({ creatorId, userId, type: 'join', organizationId: id })
   }
-  for (let userId of exited) {
+  for (const userId of exited) {
     await Logger.create({ creatorId, userId, type: 'exit', organizationId: id })
   }
 })
 router.post('/organization/transfer',  isLoggedIn, async (ctx) => {
-  let { id, ownerId } = ctx.request.body
+  const { id, ownerId } = ctx.request.body
   const organizationId = +id
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.ORGANIZATION_SET, ctx.session.id, organizationId)) {
     ctx.body = COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let body = { ownerId }
-  let result = await Organization.update(body, { where: { id } })
+  const body = { ownerId }
+  const result = await Organization.update(body, { where: { id } })
   ctx.body = {
     data: result[0],
   }
 })
 router.get('/organization/remove', isLoggedIn, async (ctx, next) => {
-  let { id } = ctx.query
+  const { id } = ctx.query
   const organizationId = +id
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.ORGANIZATION_SET, ctx.session.id, organizationId)) {
     ctx.body = COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  let result = await Organization.destroy({ where: { id } })
-  let repositories = await Repository.findAll({
+  const result = await Organization.destroy({ where: { id } })
+  const repositories = await Repository.findAll({
     where: { organizationId: id },
   })
   if (repositories.length) {
-    let ids = repositories.map(item => item.id)
+    const ids = repositories.map(item => item.id)
     await Repository.destroy({ where: { id: ids } })
     await Module.destroy({ where: { repositoryId: ids } })
     await Interface.destroy({ where: { repositoryId: ids } })
@@ -221,11 +221,11 @@ router.get('/organization/remove', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) return
-  let { id } = ctx.query
+  if (ctx.body.data === 0) {return}
+  const { id } = ctx.query
   await Logger.create({
     userId: ctx.session.id,
     type: 'delete',
-    organizationId: id,
+    organizationId: +(id as string),
   })
 })

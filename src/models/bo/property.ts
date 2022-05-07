@@ -12,7 +12,7 @@ export default class Property extends Model<Property> {
   @AutoIncrement
   @PrimaryKey
   @Column
-  id: number
+    id: number
 
   static attributes: any
 
@@ -23,7 +23,7 @@ export default class Property extends Model<Property> {
     type: DataType.ENUM(SCOPES.REQUEST, SCOPES.RESPONSE),
     comment: 'property owner',
   })
-  scope: string
+    scope: string
 
   @AllowNull(false)
   @Column({
@@ -31,68 +31,70 @@ export default class Property extends Model<Property> {
     comment: 'property type',
   })
   /** Data Type */
-  type: string
+    type: string
 
   @AllowNull(false)
   @Default(2)
   @Column({ type: DataType.INTEGER }) // for better extension
   /** request params type (position) */
-  pos: POS_TYPE
+    pos: POS_TYPE
 
   @AllowNull(false)
   @Column(DataType.STRING(256))
-  name: string
+    name: string
 
   @Column({ type: DataType.STRING(128), comment: 'property generation rules' })
-  rule: string
+    rule: string
 
   @Column({ type: DataType.TEXT, comment: 'value of this property' })
-  value: string
+    value: string
 
   @Column(DataType.TEXT)
-  description: string
+    description: string
 
   @AllowNull(false)
   @Default(-1)
   @Column({ comment: 'parent property ID' })
-  parentId: number
+    parentId: number
 
   @AllowNull(false)
   @Default(1)
   @Column(DataType.BIGINT())
-  priority: number
+    priority: number
 
   @ForeignKey(() => Interface)
   @Column
-  interfaceId: number
+    interfaceId: number
 
   @ForeignKey(() => User)
   @Column
-  creatorId: number
+    creatorId: number
 
   @ForeignKey(() => Module)
   @Column
-  moduleId: number
+    moduleId: number
 
   @ForeignKey(() => Repository)
   @Column
-  repositoryId: number
+    repositoryId: number
 
   @BelongsTo(() => User, 'creatorId')
-  creator: User
+    creator: User
 
   @BelongsTo(() => Interface, 'interfaceId')
-  interface: Interface
+    interface: Interface
 
   @BelongsTo(() => Module, 'moduleId')
-  module: Module
+    module: Module
 
   @BelongsTo(() => Repository, 'repositoryId')
-  repository: Repository
+    repository: Repository
 
   @Column
   /** 是否为必填选项 */
-  required: boolean
+    required: boolean
+
+    memory?: boolean
 
 }
 

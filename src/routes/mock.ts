@@ -2,21 +2,25 @@ import router from './router'
 import { Repository, Interface, Property } from '../models'
 import { QueryInclude } from '../models'
 import Tree from './utils/tree'
+import { sleep } from './utils/sleep'
+import CounterService from '../service/counter'
 import { MockService } from '../service/mock'
 
 const attributes: any = { exclude: [] }
 const pt = require('node-print').pt
 const beautify = require('js-beautify').js_beautify
 
+const MAX_DELAY = 3 * 60 * 1000 // 最长延时3分钟
+
 // 检测是否存在重复接口，会在返回的插件 JS 中提示。同时也会在编辑器中提示。
 const parseDuplicatedInterfaces = (repository: Repository) => {
-  let counter: any = {}
-  for (let itf of repository.interfaces) {
-    let key = `${itf.method} ${itf.url}`
+  const counter: any = {}
+  for (const itf of repository.interfaces) {
+    const key = `${itf.method} ${itf.url}`
     counter[key] = [...(counter[key] || []), { id: itf.id, method: itf.method, url: itf.url }]
   }
-  let duplicated = []
-  for (let key in counter) {
+  const duplicated = []
+  for (const key in counter) {
     if (counter[key].length > 1) {
       duplicated.push(counter[key])
     }
@@ -25,9 +29,9 @@ const parseDuplicatedInterfaces = (repository: Repository) => {
 }
 const generatePlugin = (protocol: any, host: any, repository: Repository) => {
   // DONE 2.3 protocol 错误，应该是 https
-  let duplicated = parseDuplicatedInterfaces(repository)
-  let editor = `${protocol}://rap2.taobao.org/repository/editor?id=${repository.id}` // [TODO] replaced by cur domain
-  let result = `
+  const duplicated = parseDuplicatedInterfaces(repository)
+  const editor = `${protocol}://rap2.taobao.org/repository/editor?id=${repository.id}` // [TODO] replaced by cur domain
+  const result = `
 /**
  * 仓库    #${repository.id} ${repository.name}
  * 在线编辑 ${editor}
@@ -58,10 +62,11 @@ const generatePlugin = (protocol: any, host: any, repository: Repository) => {
 }
 
 router.get('/app/plugin/:repositories', async (ctx) => {
-  let repositoryIds = new Set<number>(ctx.params.repositories.split(',').map((item: string) => +item).filter((item: any) => item)) // _.uniq() => Set
-  let result = []
-  for (let id of repositoryIds) {
-    let repository = await Repository.findByPk(id, {
+  const repositoryIds = new Set<number>(ctx.params.repositories.split(',')
+    .map((item: string) => +item).filter((item: any) => item)) // _.uniq() => Set
+  const result = []
+  for (const id of repositoryIds) {
+    const repository = await Repository.findByPk(id, {
       attributes: { exclude: [] },
       include: [
         QueryInclude.Creator,
@@ -72,7 +77,7 @@ router.get('/app/plugin/:repositories', async (ctx) => {
         QueryInclude.Collaborators,
       ],
     } as any)
-    if (!repository) continue
+    if (!repository) {continue}
     if (repository.collaborators) {
       repository.collaborators.map(item => {
         repositoryIds.add(item.id)
@@ -93,7 +98,7 @@ router.get('/app/plugin/:repositories', async (ctx) => {
     })
     // 修复 协议总是 http
     // https://lark.alipay.com/login-session/unity-login/xp92ap
-    let protocol = ctx.headers['x-client-scheme'] || ctx.protocol
+    const protocol = ctx.headers['x-client-scheme'] || ctx.protocol
     result.push(generatePlugin(protocol, ctx.host, repository))
   }
 
@@ -106,6 +111,20 @@ router.get('/app/plugin/:repositories', async (ctx) => {
 // DONE 2.2 忽略请求地址中的前缀斜杠
 // DONE 2.3 支持所有类型的请求，这样从浏览器中发送跨越请求时不需要修改 method
 router.all('/app/mock/:repositoryId(\\d+)/:url(.+)', async (ctx) => {
+  // 设置请求延迟，单位为毫秒
+  try {
+    const { __delay } = ctx.request.query
+    if (__delay) {
+      let delay = Array.isArray(__delay) ? parseInt(__delay[__delay.length - 1], 10) : parseInt(__delay, 10)
+      delay = delay > MAX_DELAY ? MAX_DELAY : delay
+      if (delay > 0) {
+        await sleep(delay)
+      }
+    }
+  } catch (error) {
+    console.error('mock delay error:', error)
+  }
+
   await MockService.mock(ctx, { forceVerify: true })
 })
 
@@ -115,16 +134,15 @@ router.all('/app/mock-noverify/:repositoryId(\\d+)/:url(.+)', async ctx => {
 
 // DONE 2.2 支持获取请求参数的模板、数据、Schema
 router.get('/app/mock/template/:interfaceId', async (ctx) => {
-  let app: any = ctx.app
-  app.counter.mock++
-  let { interfaceId } = ctx.params
-  let { scope = 'response' } = ctx.query
-  let properties = await Property.findAll({
+  await CounterService.count()
+  const { interfaceId } = ctx.params
+  const { scope = 'response' } = ctx.query
+  const properties = await Property.findAll({
     attributes,
     where: { interfaceId, scope },
   })
   // pt(properties.map(item => item.toJSON()))
-  let template = Tree.ArrayToTreeToTemplate(properties)
+  const template = Tree.ArrayToTreeToTemplate(properties)
   ctx.type = 'json'
   ctx.body = Tree.stringifyWithFunctonAndRegExp(template)
   // ctx.body = template
@@ -132,10 +150,9 @@ router.get('/app/mock/template/:interfaceId', async (ctx) => {
 })
 
 router.all('/app/mock/data/:interfaceId', async (ctx) => {
-  let app: any = ctx.app
-  app.counter.mock++
-  let { interfaceId } = ctx.params
-  let { scope = 'response' } = ctx.query
+  await CounterService.count()
+  const { interfaceId } = ctx.params
+  const { scope = 'response' } = ctx.query
   let properties: any = await Property.findAll({
     attributes,
     where: { interfaceId, scope },
@@ -149,7 +166,7 @@ router.all('/app/mock/data/:interfaceId', async (ctx) => {
     where: { interfaceId, scope: 'request' },
   })
   requestProperties = requestProperties.map((item: any) => item.toJSON())
-  let requestData = Tree.ArrayToTreeToTemplateToData(requestProperties)
+  const requestData = Tree.ArrayToTreeToTemplateToData(requestProperties)
   Object.assign(requestData, ctx.query)
 
   let data = Tree.ArrayToTreeToTemplateToData(properties, requestData)
@@ -161,33 +178,31 @@ router.all('/app/mock/data/:interfaceId', async (ctx) => {
 })
 
 router.get('/app/mock/schema/:interfaceId', async (ctx) => {
-  let app: any = ctx.app
-  app.counter.mock++
-  let { interfaceId } = ctx.params
-  let { scope = 'response' } = ctx.query
+  await CounterService.count()
+  const { interfaceId } = ctx.params
+  const { scope = 'response' } = ctx.query
   let properties: any = await Property.findAll({
     attributes,
     where: { interfaceId, scope },
   })
   pt(properties.map((item: any) => item.toJSON()))
   properties = properties.map((item: any) => item.toJSON())
-  let schema = Tree.ArrayToTreeToTemplateToJSONSchema(properties)
+  const schema = Tree.ArrayToTreeToTemplateToJSONSchema(properties)
   ctx.type = 'json'
   ctx.body = Tree.stringifyWithFunctonAndRegExp(schema)
 })
 
 router.get('/app/mock/tree/:interfaceId', async (ctx) => {
-  let app: any = ctx.app
-  app.counter.mock++
-  let { interfaceId } = ctx.params
-  let { scope = 'response' } = ctx.query
+  await CounterService.count()
+  const { interfaceId } = ctx.params
+  const { scope = 'response' } = ctx.query
   let properties: any = await Property.findAll({
     attributes,
     where: { interfaceId, scope },
   })
   pt(properties.map((item: any) => item.toJSON()))
   properties = properties.map((item: any) => item.toJSON())
-  let tree = Tree.ArrayToTree(properties)
+  const tree = Tree.ArrayToTree(properties)
   ctx.type = 'json'
   ctx.body = Tree.stringifyWithFunctonAndRegExp(tree)
 })

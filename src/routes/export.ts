@@ -1,6 +1,7 @@
 import router from './router'
 import { COMMON_ERROR_RES } from './utils/const'
 import PostmanService from '../service/export/postman'
+import OpenApiService from '../service/export/openapi'
 import MarkdownService from '../service/export/markdown'
 // import PDFService from '../service/export/pdf'
 import * as moment from 'moment'
@@ -36,7 +37,37 @@ router.get('/export/postman', async ctx => {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   )
 })
-
+router.get('/export/openapi', async ctx => {
+  const repoId = +ctx.query.id
+  const format = ctx.query.format
+  if (
+    !(await AccessUtils.canUserAccess(
+      ACCESS_TYPE.REPOSITORY_GET,
+      ctx.session.id,
+      repoId
+    ))
+  ) {
+    ctx.body = COMMON_ERROR_RES.ACCESS_DENY
+    return
+  }
+  if (!(repoId > 0)) {
+    ctx.data = COMMON_ERROR_RES.ERROR_PARAMS
+  }
+  const repository = await Repository.findByPk(repoId)
+  ctx.body = await OpenApiService.export(repoId)
+  if (format === 'file') {
+    ctx.set(
+      'Content-Disposition',
+      `attachment; filename="RAP-${encodeURI(
+        repository.name
+      )}-${repoId}-${encodeURI('OPENAPI3')}-${moment().format('YYYYMMDDHHmmss')}.json"`
+    )
+    ctx.set(
+      'Content-type',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+  }
+})
 router.get('/export/markdown', async ctx => {
   const repoId = +ctx.query.id
   if (

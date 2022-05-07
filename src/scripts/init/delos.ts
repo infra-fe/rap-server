@@ -6,7 +6,7 @@ import { BO_USER_COUNT, BO_ORGANIZATION_COUNT, BO_REPOSITORY_COUNT, BO_MODULE_CO
 
 const EMPTY_WHERE = { where: {} }
 
-export async function init () {
+export async function init() {
   await sequelize.drop()
   await sequelize.sync({
     force: true,
@@ -27,12 +27,12 @@ export async function init () {
     await User.create(BO_USER_FN())
   }
 
-  let users = await User.findAll()
+  const users = await User.findAll()
 
   // 用户 admin 仓库
   for (let BO_REPOSITORY_INDEX = 0; BO_REPOSITORY_INDEX < BO_REPOSITORY_COUNT; BO_REPOSITORY_INDEX++) {
-    let repository = await Repository.create(
-      BO_REPOSITORY_FN({ creatorId: BO_ADMIN.id, ownerId: BO_ADMIN.id }),
+    const repository = await Repository.create(
+      BO_REPOSITORY_FN({ creatorId: BO_ADMIN.id, ownerId: BO_ADMIN.id })
     )
     await repository.$set('members', users.filter(user => user.id !== BO_ADMIN.id))
     await initRepository(repository)
@@ -40,8 +40,8 @@ export async function init () {
 
   // 用户 mozhi 的仓库
   for (let BO_REPOSITORY_INDEX = 0; BO_REPOSITORY_INDEX < BO_REPOSITORY_COUNT; BO_REPOSITORY_INDEX++) {
-    let repository = await Repository.create(
-      BO_REPOSITORY_FN({ creatorId: BO_MOZHI.id, ownerId: BO_MOZHI.id }),
+    const repository = await Repository.create(
+      BO_REPOSITORY_FN({ creatorId: BO_MOZHI.id, ownerId: BO_MOZHI.id })
     )
     await repository.$set('members', (
       users.filter(user => user.id !== BO_MOZHI.id)
@@ -51,16 +51,16 @@ export async function init () {
 
   // 团队
   for (let BO_ORGANIZATION_INDEX = 0; BO_ORGANIZATION_INDEX < BO_ORGANIZATION_COUNT; BO_ORGANIZATION_INDEX++) {
-    let organization = await Organization.create(
-      BO_ORGANIZATION_FN({ creatorId: BO_ADMIN.id, ownerId: BO_ADMIN.id }),
+    const organization = await Organization.create(
+      BO_ORGANIZATION_FN({ creatorId: BO_ADMIN.id, ownerId: BO_ADMIN.id })
     )
     await organization.$set('members', (
       users.filter(user => user.id !== BO_ADMIN.id)
     ))
     // 团队的仓库
     for (let BO_REPOSITORY_INDEX = 0; BO_REPOSITORY_INDEX < BO_REPOSITORY_COUNT; BO_REPOSITORY_INDEX++) {
-      let repository = await Repository.create(
-        BO_REPOSITORY_FN({ creatorId: BO_ADMIN.id, ownerId: BO_ADMIN.id, organizationId: organization.id }),
+      const repository = await Repository.create(
+        BO_REPOSITORY_FN({ creatorId: BO_ADMIN.id, ownerId: BO_ADMIN.id, organizationId: organization.id })
       )
       await repository.$set('members', users.filter(user => user.id !== BO_ADMIN.id))
       await initRepository(repository)
@@ -68,23 +68,23 @@ export async function init () {
   }
 }
 
-async function initRepository (repository: any) {
+async function initRepository(repository: any) {
   // 模块
   for (let BO_MODULE_INDEX = 0; BO_MODULE_INDEX < BO_MODULE_COUNT; BO_MODULE_INDEX++) {
-    let mod = await Module.create(
-      BO_MODULE_FN({ creatorId: repository.creatorId, repositoryId: repository.id }),
+    const mod = await Module.create(
+      BO_MODULE_FN({ creatorId: repository.creatorId, repositoryId: repository.id })
     )
     await repository.addModule(mod)
     // 接口
     for (let BO_INTERFACE_INDEX = 0; BO_INTERFACE_INDEX < BO_INTERFACE_COUNT; BO_INTERFACE_INDEX++) {
-      let itf = await Interface.create(
-        BO_INTERFACE_FN({ creatorId: mod.creatorId, repositoryId: repository.id, moduleId: mod.id }),
+      const itf = await Interface.create(
+        BO_INTERFACE_FN({ creatorId: mod.creatorId, repositoryId: repository.id, moduleId: mod.id })
       )
       await mod.$add('interfaces', itf)
       // 属性
       for (let BO_PROPERTY_INDEX = 0; BO_PROPERTY_INDEX < BO_PROPERTY_COUNT; BO_PROPERTY_INDEX++) {
-        let prop = await Property.create(
-          BO_PROPERTY_FN({ creatorId: itf.creatorId, repositoryId: repository.id, moduleId: mod.id, interfaceId: itf.id }),
+        const prop = await Property.create(
+          BO_PROPERTY_FN({ creatorId: itf.creatorId, repositoryId: repository.id, moduleId: mod.id, interfaceId: itf.id })
         )
         await itf.$add('properties', prop)
       }
@@ -92,9 +92,9 @@ async function initRepository (repository: any) {
   }
 }
 
-export async function after () {
-  let exclude = ['password', 'createdAt', 'updatedAt', 'deletedAt']
-  let repositories = await Repository.findAll({
+export async function after() {
+  const exclude = ['password', 'createdAt', 'updatedAt', 'deletedAt']
+  const repositories = await Repository.findAll({
     attributes: { exclude: [] },
     include: [
       { model: User, as: 'creator', attributes: { exclude }, required: true },
@@ -133,13 +133,13 @@ export async function after () {
   // console.log(JSON.stringify(repositories, null, 2))
   console.log(repositories.map(item => item.toJSON()))
 
-  let admin = await User.findByPk(BO_ADMIN.id)
+  const admin = await User.findByPk(BO_ADMIN.id)
   // for (let k in admin) console.log(k)
-  let owned: any = await admin.$get('ownedOrganizations')
+  const owned: any = await admin.$get('ownedOrganizations')
   console.log(owned.map((item: any) => item.toJSON()))
 
-  let mozhi = await User.findByPk(BO_MOZHI.id)
-  for (let k in mozhi) console.log(k)
-  let joined: any = await mozhi.$get('joinedOrganizations')
+  const mozhi = await User.findByPk(BO_MOZHI.id)
+  for (const k in mozhi) {console.log(k)}
+  const joined: any = await mozhi.$get('joinedOrganizations')
   console.log(joined.map((item: any) => item.toJSON()))
 }

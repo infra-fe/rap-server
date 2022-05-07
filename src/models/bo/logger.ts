@@ -13,56 +13,56 @@ export default class Logger extends Model<Logger> {
   @AutoIncrement
   @PrimaryKey
   @Column
-  id: number
+    id: number
 
   @AllowNull(false)
   @Column({
     type: DataType.ENUM(types.CREATE, types.UPDATE, types.DELETE, types.LOCK, types.UNLOCK, types.JOIN, types.EXIT),
     comment: 'operation type',
   })
-  type: string
+    type: string
 
   @ForeignKey(() => User)
   @Column
-  creatorId: number
+    creatorId: number
 
   @AllowNull(false)
   @ForeignKey(() => User)
   @Column
-  userId: number
+    userId: number
 
   @ForeignKey(() => Organization)
   @Column
-  organizationId: number
+    organizationId: number
 
   @ForeignKey(() => Repository)
   @Column
-  repositoryId: number
+    repositoryId: number
 
   @ForeignKey(() => Module)
   @Column
-  moduleId: number
+    moduleId: number
 
   @ForeignKey(() => Interface)
   @Column
-  interfaceId: number
+    interfaceId: number
 
   @BelongsTo(() => User, 'creatorId')
-  creator: User
+    creator: User
 
   @BelongsTo(() => User, 'userId')
-  user: User
+    user: User
 
   @BelongsTo(() => Repository, 'repositoryId')
-  repository: Repository
+    repository: Repository
 
   @BelongsTo(() => Organization, 'organizationId')
-  organization: Organization
+    organization: Organization
 
   @BelongsTo(() => Module, 'moduleId')
-  module: Module
+    module: Module
 
   @BelongsTo(() => Interface, 'interfaceId')
-  interface: Interface
+    interface: Interface
 
 }

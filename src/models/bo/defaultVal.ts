@@ -8,20 +8,20 @@ export default class DefaultVal extends Model<DefaultVal> {
   @PrimaryKey
   @AutoIncrement
   @Column
-  id: number
+    id: number
 
   @Column
-  name: string
+    name: string
 
   @Column
-  rule: string
+    rule: string
 
   @Column
-  value: string
+    value: string
 
   @ForeignKey(() => Repository)
   @Column
-  repositoryId: number
+    repositoryId: number
 
 }
 

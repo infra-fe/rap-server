@@ -1,7 +1,7 @@
-import { nanoid } from "nanoid"
-import sequelize from "../models/sequelize"
-import { Repository } from "../models"
-const chalk = require("chalk");
+import { nanoid } from 'nanoid'
+import sequelize from '../models/sequelize'
+import { Repository } from '../models'
+const chalk = require('chalk');
 
 // 补数据 token
 
@@ -11,8 +11,8 @@ const chalk = require("chalk");
   const cnt = await Repository.count({
     where: {
       // tslint:disable-next-line: no-null-keyword
-      token: null
-    }
+      token: null,
+    },
   })
 
   const limit = 500
@@ -24,9 +24,9 @@ const chalk = require("chalk");
     const rows = await Repository.findAll({
       where: {
         // tslint:disable-next-line: no-null-keyword
-        token: null
+        token: null,
       },
-      limit
+      limit,
     })
     console.log(`正在处理第 ${iteration} 轮, length ${rows.length}`)
 
@@ -41,7 +41,7 @@ const chalk = require("chalk");
           repo.token = nanoid(32)
           await repo.save()
           console.log(
-            chalk.green(repo.name + "添加了默认token：" + repo.token)
+            chalk.green(repo.name + '添加了默认token：' + repo.token)
           )
         }
       })

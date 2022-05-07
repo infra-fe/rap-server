@@ -7,5 +7,6 @@ require('./repository')
 require('./mock')
 require('./analytics')
 require('./export')
+require('./scene')
 
 export default router

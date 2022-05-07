@@ -151,8 +151,8 @@ export default class Pagination {
 
   public setFocus(focus: any) {
     this.focus = parseInt(focus, 10)
-    if (this.focus < 0) this.focus += this.total
-    if (this.focus >= this.total) this.focus -= this.total
+    if (this.focus < 0) {this.focus += this.total}
+    if (this.focus >= this.total) {this.focus -= this.total}
     this.cursor = parseInt(String(this.focus / this.limit), 10) + 1
     return this.calc()
   }
@@ -163,8 +163,8 @@ export default class Pagination {
   }
 
   public get(focus: any) {
-    if (focus !== undefined) return this.data[focus % this.data.length]
-    else return this.data[this.focus]
+    if (focus !== undefined) {return this.data[focus % this.data.length]}
+    else {return this.data[this.focus]}
   }
 
   public toString() {

@@ -10,50 +10,50 @@ export default class Organization extends Model<Organization> {
     await Logger.create({
       userId: instance.creatorId,
       type: 'create',
-      organizationId: instance.id
+      organizationId: instance.id,
     })
   }
 
   @AutoIncrement
   @PrimaryKey
   @Column
-  id: number
+    id: number
 
   @AllowNull(false)
   @Column(DataType.STRING(256))
-  name: string
+    name: string
 
   @Column(DataType.TEXT)
-  description: string
+    description: string
 
   @Column(DataType.STRING(256))
-  logo: string
+    logo: string
 
   @AllowNull(false)
   @Default(true)
   @Column({ comment: 'true:public, false:private' })
-  visibility: boolean
+    visibility: boolean
 
   @ForeignKey(() => User)
   @Column
-  creatorId: number
+    creatorId: number
 
   @ForeignKey(() => User)
   @Column
-  ownerId: number
+    ownerId: number
 
   @BelongsTo(() => User, 'creatorId')
-  creator: User
+    creator: User
 
   @BelongsTo(() => User, 'ownerId')
-  owner: User
+    owner: User
 
   @BelongsToMany(() => User, () => OrganizationsMembers)
-  members: User[]
+    members: User[]
 
   @HasMany(() => OrganizationsMembers)
-  organizationMembersList: OrganizationsMembers[]
+    organizationMembersList: OrganizationsMembers[]
 
   @HasMany(() => Repository, 'organizationId')
-  repositories: Repository[]
+    repositories: Repository[]
 }

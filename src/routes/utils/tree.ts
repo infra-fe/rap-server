@@ -6,20 +6,20 @@ const { RE_KEY } = require('mockjs/src/mock/constant')
 
 export default class Tree {
   public static ArrayToTree(list: Property[]) {
-    let result: any = {
+    const result: any = {
       name: 'root',
       children: [],
       depth: 0,
     }
 
-    let mapped: any = {}
+    const mapped: any = {}
     list.forEach(item => {
       mapped[item.id] = item
     })
 
     function _parseChildren(parentId: any, children: any, depth: any) {
-      for (let id in mapped) {
-        let item = mapped[id]
+      for (const id in mapped) {
+        const item = mapped[id]
         if (typeof parentId === 'function' ? parentId(item.parentId) : item.parentId === parentId) {
           children.push(item)
           item.depth = depth + 1
@@ -32,11 +32,11 @@ export default class Tree {
     _parseChildren(
       (parentId: number) => {
         // 忽略 parentId 为 0 的根属性（历史遗留），现为 -1
-        if (parentId === -1) return true
+        if (parentId === -1) {return true}
         return false
       },
       result.children,
-      result.depth,
+      result.depth
     )
 
     return result
@@ -46,10 +46,10 @@ export default class Tree {
   public static TreeToTemplate(tree: any) {
     const vm = new VM({
       sandbox: {},
-      timeout: 3000
+      timeout: 3000,
     })
     function parse(item: any, result: any) {
-      let rule = item.rule ? '|' + item.rule : ''
+      const rule = item.rule ? '|' + item.rule : ''
       let value = item.value
       if (
         item.value &&
@@ -68,15 +68,15 @@ export default class Tree {
             result[item.name + rule] = item.value
             break
           case 'Number':
-            if (value === '') value = 1
-            let parsed = parseFloat(value)
-            if (!isNaN(parsed)) value = parsed
+            if (value === '') {value = 1}
+            const parsed = parseFloat(value)
+            if (!isNaN(parsed)) {value = parsed}
             result[item.name + rule] = value
             break
           case 'Boolean':
-            if (value === 'true') value = true
-            if (value === 'false') value = false
-            if (value === '0') value = false
+            if (value === 'true') {value = true}
+            if (value === 'false') {value = false}
+            if (value === '0') {value = false}
             value = !!value
             result[item.name + rule] = value
             break
@@ -86,7 +86,7 @@ export default class Tree {
               result[item.name + rule] = vm.run('(' + item.value + ')')
             } catch (e) {
               console.warn(
-                `TreeToTemplate ${e.message}: ${item.type} { ${item.name}${rule}: ${item.value} }`,
+                `TreeToTemplate ${e.message}: ${item.type} { ${item.name}${rule}: ${item.value} }`
               ) // TODO 2.2 怎么消除异常值？
               result[item.name + rule] = item.value
             }
@@ -126,7 +126,7 @@ export default class Tree {
         }
       }
     }
-    let result = {}
+    const result = {}
     tree.children.forEach((child: any) => {
       parse(child, result)
     })
@@ -137,13 +137,13 @@ export default class Tree {
     // 数据模板 template 中可能含有攻击代码，例如死循环，所以在沙箱中生成最终数据
     // https://nodejs.org/dist/latest-v7.x/docs/api/vm.html
     const vm = new VM({
-      sandbox: { mock: Mock.mock, template, },
-      timeout: 3000
+      sandbox: { mock: Mock.mock, template },
+      timeout: 3000,
     })
     try {
       let data: any = vm.run('mock(template)')
-      let keys = Object.keys(data)
-      if (keys.length === 1 && keys[0] === '__root__') data = data.__root__
+      const keys = Object.keys(data)
+      if (keys.length === 1 && keys[0] === '__root__') {data = data.__root__}
       return data
     } catch (err) {
       console.error(err)
@@ -152,14 +152,14 @@ export default class Tree {
   }
 
   public static ArrayToTreeToTemplate(list: Property[]) {
-    let tree = Tree.ArrayToTree(list)
-    let template = Tree.TreeToTemplate(tree)
+    const tree = Tree.ArrayToTree(list)
+    const template = Tree.TreeToTemplate(tree)
     return template
   }
 
   public static ArrayToTreeToTemplateToData(list: Property[], extra?: any) {
-    let tree = Tree.ArrayToTree(list)
-    let template: { [key: string]: any } = Tree.TreeToTemplate(tree)
+    const tree = Tree.ArrayToTree(list)
+    const template: { [key: string]: any } = Tree.TreeToTemplate(tree)
     let data
     const propertyMap: { [key: string]: Property } = {}
     for (const p of list) {
@@ -167,20 +167,20 @@ export default class Tree {
     }
     if (extra) {
       // DONE 2.2 支持引用请求参数
-      let keys = Object.keys(template).map(item => item.replace(RE_KEY, '$1'))
-      let extraKeys = _.difference(Object.keys(extra), keys)
-      let scopedData = Tree.TemplateToData(Object.assign({}, _.pick(extra, extraKeys), template))
+      const keys = Object.keys(template).map(item => item.replace(RE_KEY, '$1'))
+      const extraKeys = _.difference(Object.keys(extra), keys)
+      const scopedData = Tree.TemplateToData(Object.assign({}, _.pick(extra, extraKeys), template))
 
       const recursivelyFillData = (node: any) => {
         for (const key in node) {
-          if (!node.hasOwnProperty(key)) continue
+          if (!node.hasOwnProperty(key)) {continue}
           let data = node[key]
           if (_.isObject(data)) {
             recursivelyFillData(data)
             continue
           }
           for (const eKey in extra) {
-            if (!extra.hasOwnProperty(eKey)) continue
+            if (!extra.hasOwnProperty(eKey)) {continue}
             const pattern = new RegExp(`\\$${eKey}\\$`, 'g')
             if (data && pattern.test(data)) {
               let result = data.replace(pattern, extra[eKey])
@@ -208,9 +208,9 @@ export default class Tree {
   }
 
   public static ArrayToTreeToTemplateToJSONSchema(list: Property[]) {
-    let tree = Tree.ArrayToTree(list)
-    let template = Tree.TreeToTemplate(tree)
-    let schema = Mock.toJSONSchema(template)
+    const tree = Tree.ArrayToTree(list)
+    const template = Tree.TreeToTemplate(tree)
+    const schema = Mock.toJSONSchema(template)
     return schema
   }
 
@@ -222,11 +222,11 @@ export default class Tree {
       json,
       (k, v) => {
         k
-        if (typeof v === 'function') return v.toString()
-        if (v !== undefined && v !== null && v.exec) return v.toString()
-        else return v
+        if (typeof v === 'function') {return v.toString()}
+        if (v !== undefined && v !== null && v.exec) {return v.toString()}
+        else {return v}
       },
-      2,
+      2
     )
   }
 
@@ -245,13 +245,13 @@ export default class Tree {
       moduleId: number
       interfaceId: number
       scope: 'request' | 'response'
-    },
+    }
   ) {
     const isIncreamentNumberSequence = (numbers: any) =>
       numbers.every(
         (num: any) =>
           typeof num === 'number' &&
-          ((num: any, i: number) => i === 0 || num - numbers[i - 1] === 1),
+          ((num: any, i: number) => i === 0 || num - numbers[i - 1] === 1)
       )
     function isPrimitiveType(type: string) {
       return ['number', 'null', 'undefined', 'boolean', 'string'].indexOf(type.toLowerCase()) > -1
@@ -310,7 +310,7 @@ export default class Tree {
       schema: any,
       parent = { id: -1 },
       memoryProperties: any,
-      siblings?: any,
+      siblings?: any
     ) {
       if (!schema) {
         return
@@ -385,23 +385,23 @@ export default class Tree {
         {
           memory: true,
           id: _.uniqueId('memory-'),
-        },
+        }
       )
       memoryProperties.push(property)
       if (schema.properties) {
         schema.properties.forEach((item: any) => {
           const childSiblings = hasSiblings
             ? siblings.map(
-                (s: any) =>
-                  (s && s.properties && s.properties.find((p: any) => p && p.name === item.name)) || null,
-              )
+              (s: any) =>
+                (s && s.properties && s.properties.find((p: any) => p && p.name === item.name)) || null
+            )
             : undefined
           handleJSONSchema(item, property, memoryProperties, childSiblings)
         })
       }
       mixItemsProperties(schema.items).properties.forEach((item: any) => {
         const siblings = schema.items.map(
-          (o: any) => o.properties.find((p: any) => p.name === item.name) || null,
+          (o: any) => o.properties.find((p: any) => p.name === item.name) || null
         )
         handleJSONSchema(item, property, memoryProperties, siblings)
       })

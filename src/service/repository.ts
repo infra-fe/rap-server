@@ -11,19 +11,19 @@ export default class RepositoryService {
   public static async canUserAccessRepository(
     userId: number,
     repositoryId: number,
-    token?: string,
+    token?: string
   ): Promise<boolean> {
     const repo = await Repository.findByPk(repositoryId)
-    if (token && repo.token === token) return true
-    if (!repo) return false
-    if (repo.ownerId === userId) return true
+    if (token && repo.token === token) {return true}
+    if (!repo) {return false}
+    if (repo.ownerId === userId) {return true}
     const memberExistsNum = await RepositoriesMembers.count({
       where: {
         userId,
         repositoryId,
       },
     })
-    if (memberExistsNum > 0) return true
+    if (memberExistsNum > 0) {return true}
     return OrganizationService.canUserAccessOrganization(userId, repo.organizationId)
   }
 
@@ -31,7 +31,7 @@ export default class RepositoryService {
     userId: number,
     itfId: number,
     destRepoId: number,
-    destModuleId: number,
+    destModuleId: number
   ) {
     return (
       AccessUtils.canUserAccess(ACCESS_TYPE.INTERFACE_GET, userId, itfId) &&
@@ -61,7 +61,7 @@ export default class RepositoryService {
           where: {
             moduleId: modId,
           },
-        },
+        }
       )
       await Property.update(
         {
@@ -71,7 +71,7 @@ export default class RepositoryService {
           where: {
             moduleId: modId,
           },
-        },
+        }
       )
     } else if (op === MoveOp.COPY) {
       const { id, name, ...otherProps } = mod.toJSON() as Module
@@ -86,7 +86,7 @@ export default class RepositoryService {
         repositoryId: destRepoId,
       })
       const promises = interfaces.map(itf =>
-        RepositoryService.moveInterface(MoveOp.COPY, itf.id, destRepoId, newMod.id, ''),
+        RepositoryService.moveInterface(MoveOp.COPY, itf.id, destRepoId, newMod.id, '')
       )
       await Promise.all(promises)
     }
@@ -96,13 +96,22 @@ export default class RepositoryService {
     ])
   }
 
+  /**
+   * @param op
+   * @param itfId
+   * @param destRepoId
+   * @param destModuleId
+   * @param interfaceName will override new name
+   * @returns return newly created Interface.id if MoveOp === COPY
+   */
   public static async moveInterface(
     op: MoveOp,
     itfId: number,
     destRepoId: number,
     destModuleId: number,
-    nameSuffix = '副本'
+    interfaceName?: string
   ) {
+    let returnedVal = 0
     const itf = await Interface.findByPk(itfId)
     const fromRepoId = itf.repositoryId
     if (op === MoveOp.MOVE) {
@@ -117,13 +126,13 @@ export default class RepositoryService {
           where: {
             interfaceId: itf.id,
           },
-        },
+        }
       )
       await itf.save()
     } else if (op === MoveOp.COPY) {
       const { id, name, ...otherProps } = itf.toJSON() as Interface
       const newItf = await Interface.create({
-        name: name + nameSuffix,
+        name: interfaceName ? interfaceName : name + '副本',
         ...otherProps,
         repositoryId: destRepoId,
         moduleId: destModuleId,
@@ -136,7 +145,7 @@ export default class RepositoryService {
         order: [['parentId', 'asc']],
       })
       // 解决parentId丢失的问题
-      let idMap: any = {}
+      const idMap: any = {}
       for (const property of properties) {
         const { id, parentId, ...props } = property.toJSON() as Property
         const newParentId = idMap[parentId + ''] ? idMap[parentId + ''] : -1
@@ -149,11 +158,13 @@ export default class RepositoryService {
         })
         idMap[id + ''] = newProperty.id
       }
+      returnedVal = newItf.id
     }
     await Promise.all([
       RedisService.delCache(CACHE_KEY.REPOSITORY_GET, fromRepoId),
       RedisService.delCache(CACHE_KEY.REPOSITORY_GET, destRepoId),
     ])
+    return returnedVal
   }
 
   public static async addHistoryLog(log: Partial<HistoryLog>) {
@@ -176,7 +187,7 @@ export default class RepositoryService {
           [Op.or]: [baseCon, {
             entityType: ENTITY_TYPE.INTERFACE,
             entityId: { [Op.in]: relatedInterfaceIds },
-          }]
+          }],
         },
       },
       include: [{
@@ -197,6 +208,6 @@ export default class RepositoryService {
   public static async getInterfaceJSONData(id: number) {
     const itf = await Interface.findByPk(id)
     const properties = await Property.findAll({ where: { interfaceId: id } })
-    return JSON.stringify({ "itf": itf, "properties": properties })
+    return JSON.stringify({ 'itf': itf, 'properties': properties })
   }
 }

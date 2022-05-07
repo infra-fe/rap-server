@@ -3,13 +3,13 @@ import { Repository } from '../'
 
 @Table({ freezeTableName: true, timestamps: true, tableName: 'repositories_collaborators' })
 export default class RepositoriesCollaborators extends Model<RepositoriesCollaborators> {
-    @ForeignKey(() => Repository)
-    @PrimaryKey
-    @Column
+  @ForeignKey(() => Repository)
+  @PrimaryKey
+  @Column
     repositoryId: number
 
-    @ForeignKey(() => Repository)
-    @PrimaryKey
-    @Column
+  @ForeignKey(() => Repository)
+  @PrimaryKey
+  @Column
     collaboratorId: number
 }

@@ -10,7 +10,7 @@ export default class HistoryLog extends Model<HistoryLog> {
   @PrimaryKey
   @AutoIncrement
   @Column
-  id: number
+    id: number
 
   /**
    * ENTITY_TYPE.INTERFACE: 接口级日志
@@ -18,33 +18,33 @@ export default class HistoryLog extends Model<HistoryLog> {
    */
   @AllowNull(false)
   @Column({ type: DataType.INTEGER }) // for extension, type to INT, code as enum
-  entityType: ENTITY_TYPE
+    entityType: ENTITY_TYPE
 
   @AllowNull(false)
   @Column
-  entityId: number
+    entityId: number
 
   /**
    * 文本日志，支持Markdown，可能存在不同版本，以MarkDown输出即可
    */
   @AllowNull(false)
   @Column({ type: DataType.TEXT })
-  changeLog: string
+    changeLog: string
 
 
   /**
    * 可空，当发现变更较大（删除、修改字段较多、或整个接口的删除时），记录对应实体的Model JSON用于恢复。
    */
   @Column({ type: DataType.TEXT })
-  relatedJSONData: string
+    relatedJSONData: string
 
   @AllowNull(false)
   @ForeignKey(() => User)
   @Column
-  userId: number
+    userId: number
 
   @BelongsTo(() => User, 'userId')
-  user: User
+    user: User
 
   jsonDataIsNull?: boolean
 

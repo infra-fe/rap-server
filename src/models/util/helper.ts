@@ -1,10 +1,10 @@
 declare interface IHelper {
-  include: string[],
+  include: string[]
   exclude: {
-    generalities: string[],
+    generalities: string[]
   }
 }
-export let Helper: IHelper =  {
+export const Helper: IHelper =  {
   include: [],
   exclude: {
     generalities: ['createdAt', 'updatedAt', 'deletedAt', 'reserve'],

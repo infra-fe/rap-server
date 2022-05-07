@@ -10,14 +10,18 @@ export enum CACHE_KEY {
   /** GLOBAL PERSONAL PREFERENCES */
   THEME_ID = 'THEME_ID',
   GUIDE_20200714 = 'GUIDE_20200714',
+
+  GLOBAL_STATUS_COUNTER = 'GLOBAL_STATUS_COUNTER',
 }
 
 export const DEFAULT_CACHE_VAL = {
-  [CACHE_KEY.THEME_ID]: THEME_TEMPLATE_KEY.INDIGO
+  [CACHE_KEY.THEME_ID]: THEME_TEMPLATE_KEY.INDIGO,
 }
 
 export default class RedisService {
-  private static client: redis.RedisClient = config.redis && config.redis.isRedisCluster ? new ioredis.Cluster(config.redis.nodes, {redisOptions: config.redis.redisOptions}) : redis.createClient(config.redis)
+  private static client: redis.RedisClient = config.redis && config.redis.isRedisCluster
+    ? new ioredis.Cluster(config.redis.nodes, { redisOptions: config.redis.redisOptions })
+    : redis.createClient(config.redis)
 
   private static getCacheKey(key: CACHE_KEY, entityId?: number): string {
     return `${key}:${entityId || ''}`
@@ -48,13 +52,24 @@ export default class RedisService {
   }
 
   public static delCache(key: CACHE_KEY, entityId?: number): Promise<boolean> {
-    let cacheKey = this.getCacheKey(key, entityId)
+    const cacheKey = this.getCacheKey(key, entityId)
     return new Promise((resolve, reject) => {
       RedisService.client.del(cacheKey, (error) => {
         if (error) {
           reject(error)
         }
         resolve(true)
+      })
+    })
+  }
+  public static increaseCache(key: CACHE_KEY, val: number, entityId?: number): Promise<boolean> {
+    const cacheKey = this.getCacheKey(key, entityId)
+    return new Promise((resolve, reject) => {
+      RedisService.client.incrby(cacheKey, val, (err: Error) => {
+        if (err) {
+          return reject(false)
+        }
+        return resolve(true)
       })
     })
   }

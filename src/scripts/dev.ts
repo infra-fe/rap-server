@@ -2,14 +2,14 @@ import config from '../config'
 import app from './app'
 
 const start = () => {
-  let execSync = require('child_process').execSync
-  let port = config.serve.port
-  let url = `http://localhost:${port}` // /api.html
-  let open = false
+  const execSync = require('child_process').execSync
+  const port = config.serve.port
+  const url = `http://localhost:${port}` // /api.html
+  const open = false
   console.log('----------------------------------------')
   app.listen(port, () => {
     console.log(`rap2-delos is running as ${url}`)
-    if (!open) return
+    if (!open) {return}
     try {
       execSync(`osascript openChrome.applescript ${url}`, { cwd: __dirname, stdio: 'ignore' })
     } catch (e) {

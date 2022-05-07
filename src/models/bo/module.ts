@@ -12,7 +12,7 @@ export default class Module extends Model<Module> {
   @BeforeUpdate
   @BeforeDestroy
   static async deleteCache(instance: Module) {
-     await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, instance.repositoryId)
+    await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, instance.repositoryId)
   }
 
   @BeforeBulkCreate
@@ -41,36 +41,36 @@ export default class Module extends Model<Module> {
   @AutoIncrement
   @PrimaryKey
   @Column
-  id: number
+    id: number
 
   @AllowNull(false)
   @Column(DataType.STRING(256))
-  name: string
+    name: string
 
 
   @AllowNull(false)
   @Column(DataType.TEXT)
-  description: string
+    description: string
 
   @AllowNull(false)
   @Default(1)
   @Column(DataType.BIGINT())
-  priority: number
+    priority: number
 
   @ForeignKey(() => User)
   @Column
-  creatorId: number
+    creatorId: number
 
   @ForeignKey(() => Repository)
   @Column
-  repositoryId: number
+    repositoryId: number
 
   @BelongsTo(() => User, 'creatorId')
-  creator: User
+    creator: User
 
   @BelongsTo(() => Repository, 'repositoryId')
-  repository: Repository
+    repository: Repository
 
   @HasMany(() => Interface, 'moduleId')
-  interfaces: Interface[]
+    interfaces: Interface[]
 }

@@ -34,7 +34,7 @@ const genExampleProperty = (extra: any, lang: string) => Object.assign({
 
 // 初始化仓库
 const initRepository = async (repository: Repository, lang: string) => {
-  let mod = await Module.create(genExampleModule({
+  const mod = await Module.create(genExampleModule({
     creatorId: repository.creatorId,
     repositoryId: repository.id,
   }, lang))
@@ -42,7 +42,7 @@ const initRepository = async (repository: Repository, lang: string) => {
 }
 // 初始化模块
 const initModule = async (mod: Module, lang: string) => {
-  let itf = await Interface.create(genExampleInterface({
+  const itf = await Interface.create(genExampleInterface({
     creatorId: mod.creatorId,
     moduleId: mod.id,
     repositoryId: mod.repositoryId,
@@ -51,8 +51,8 @@ const initModule = async (mod: Module, lang: string) => {
 }
 // 初始化接口
 const initInterface = async (itf: Interface, lang: string) => {
-  let { creatorId, repositoryId, moduleId } = itf
-  let interfaceId = itf.id
+  const { creatorId, repositoryId, moduleId } = itf
+  const interfaceId = itf.id
   await Property.create(genExampleProperty({
     scope: 'request',
     creatorId,
@@ -121,7 +121,7 @@ const initInterface = async (itf: Interface, lang: string) => {
     moduleId,
     interfaceId,
   }, lang))
-  let array = await Property.create(genExampleProperty({
+  const array = await Property.create(genExampleProperty({
     scope: 'response',
     name: 'array',
     type: 'Array',
@@ -171,7 +171,7 @@ const initInterface = async (itf: Interface, lang: string) => {
     moduleId,
     interfaceId,
   }, lang))
-  let object = await Property.create(genExampleProperty({
+  const object = await Property.create(genExampleProperty({
     scope: 'response',
     name: 'object',
     type: 'Object',

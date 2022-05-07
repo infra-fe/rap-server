@@ -7,30 +7,30 @@ export default class User extends Model<User> {
   @AutoIncrement
   @PrimaryKey
   @Column
-  id: number
+    id: number
 
   @AllowNull(false)
   @Column(DataType.STRING(32))
-  fullname: string
+    fullname: string
 
   @Column(DataType.STRING(32))
-  password: string
+    password: string
 
   @AllowNull(false)
   @Unique
   @Column(DataType.STRING(128))
-  email: string
+    email: string
 
   @HasMany(() => Organization, 'ownerId')
-  ownedOrganizations: Organization[]
+    ownedOrganizations: Organization[]
 
   @BelongsToMany(() => Organization, () => OrganizationsMembers)
-  joinedOrganizations: Organization[]
+    joinedOrganizations: Organization[]
 
   @HasMany(() => Repository, 'ownerId')
-  ownedRepositories: Repository[]
+    ownedRepositories: Repository[]
 
   @BelongsToMany(() => Repository, () => RepositoriesMembers)
-  joinedRepositories: Repository[]
+    joinedRepositories: Repository[]
 
 }

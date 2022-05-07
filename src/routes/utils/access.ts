@@ -23,7 +23,7 @@ export class AccessUtils {
     accessType: ACCESS_TYPE,
     curUserId: number,
     entityId: number,
-    token?: string,
+    token?: string
   ): Promise<boolean> {
     // 测试模式无权限
     if (inTestMode) {

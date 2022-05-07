@@ -13,7 +13,7 @@ RAP是在RAP1 & RAP2基础上重做的新项目，它包含两个组件(对应�
 
 ### Support 客户支持
 
-<img src="https://user-images.githubusercontent.com/13103261/141053217-44ae06cb-c005-4310-ac08-6c0839fe5424.jpg" alt="wechat support" width=200 />
+<img src="https://user-images.githubusercontent.com/13103261/167248620-1e8e65fd-57a9-434c-b2fc-2d8c215d56fe.png" alt="wechat support" width=200 />
 
 ## 推荐使用 Docker 快速部署
 

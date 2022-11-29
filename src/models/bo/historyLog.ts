@@ -1,6 +1,6 @@
-import { Table, Column, Model, AutoIncrement, PrimaryKey, DataType, AllowNull, ForeignKey, BelongsTo } from 'sequelize-typescript'
-import { ENTITY_TYPE } from '../../routes/utils/const'
+import { AllowNull, AutoIncrement, BelongsTo, Column, DataType, ForeignKey, Model, PrimaryKey, Table } from 'sequelize-typescript'
 import { User } from '../../models'
+import { ENTITY_TYPE } from '../../routes/utils/const'
 
 
 @Table({ paranoid: true, freezeTableName: false, timestamps: true, tableName: 'history_log' })
@@ -38,6 +38,8 @@ export default class HistoryLog extends Model<HistoryLog> {
   @Column({ type: DataType.TEXT })
     relatedJSONData: string
 
+  @Column
+    versionId: number
   @AllowNull(false)
   @ForeignKey(() => User)
   @Column

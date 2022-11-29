@@ -1,7 +1,7 @@
-import router from './router'
 import * as JSON5 from 'json5'
-import { isLoggedIn } from './base'
 import { Scene } from '../models'
+import { isLoggedIn } from './base'
+import router from './router'
 import { AccessUtils, ACCESS_TYPE } from './utils/access'
 import * as Consts from './utils/const'
 
@@ -9,8 +9,6 @@ router.post('/scene/create', isLoggedIn, async (ctx) => {
   const { body } = ctx.request
   const now = Math.floor(Date.now() / 1000)
   body.priority = now
-  body.createdAt = now
-  body.updatedAt = now
   const created = await Scene.create(body)
   await Scene.update(
     {...created, sceneKey: 'scene_' + created.id, sceneName: 'scene_' + created.id},
@@ -78,7 +76,6 @@ router.post('/scene/update', isLoggedIn, async (ctx) => {
       return
     }
   }
-  body.updatedAt = Math.floor(Date.now() / 1000)
   await Scene.update(body, { where: { id: body.id } })
   ctx.body = {
     data: {
@@ -90,14 +87,18 @@ router.post('/scene/update', isLoggedIn, async (ctx) => {
 
 router.get('/scene/remove', isLoggedIn, async (ctx) => {
   const id  = +ctx.query.id
-  const { interfaceId } = await Scene.findByPk(+id)
-  if (!await AccessUtils.canUserAccess(ACCESS_TYPE.INTERFACE_SET, ctx.session.id, +interfaceId)) {
-    ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
+  const result = await Scene.findByPk(+id)
+  if (result) {
+    if (!await AccessUtils.canUserAccess(ACCESS_TYPE.INTERFACE_SET, ctx.session.id, +result.interfaceId)) {
+      ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
+      return
+    }
+  } else {
+    ctx.body = Consts.COMMON_ERROR_RES.ERROR_PARAMS
     return
   }
-  const now = Math.floor(Date.now() / 1000)
   ctx.body = {
-    data: await Scene.update({deletedAt: now}, {
+    data: await Scene.destroy({
       where: { id },
     }),
   }

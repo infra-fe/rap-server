@@ -1,8 +1,12 @@
-import { Property } from '../../models'
-import * as _ from 'underscore'
-const { VM } = require('vm2')
 import * as Mock from 'mockjs'
+import * as _ from 'underscore'
+import { Property } from '../../models'
+import { POS_TYPE } from '../../models/bo/property'
+import { getJSONSchema } from './jsonSchema'
+const { VM } = require('vm2')
 const { RE_KEY } = require('mockjs/src/mock/constant')
+
+type propertyType = 'reqHeader' | 'reqQuery' | 'reqBody' | 'response'
 
 export default class Tree {
   public static ArrayToTree(list: Property[]) {
@@ -32,7 +36,7 @@ export default class Tree {
     _parseChildren(
       (parentId: number) => {
         // 忽略 parentId 为 0 的根属性（历史遗留），现为 -1
-        if (parentId === -1) {return true}
+        if (parentId === -1) { return true }
         return false
       },
       result.children,
@@ -68,15 +72,15 @@ export default class Tree {
             result[item.name + rule] = item.value
             break
           case 'Number':
-            if (value === '') {value = 1}
+            if (value === '') { value = 1 }
             const parsed = parseFloat(value)
-            if (!isNaN(parsed)) {value = parsed}
+            if (!isNaN(parsed)) { value = parsed }
             result[item.name + rule] = value
             break
           case 'Boolean':
-            if (value === 'true') {value = true}
-            if (value === 'false') {value = false}
-            if (value === '0') {value = false}
+            if (value === 'true') { value = true }
+            if (value === 'false') { value = false }
+            if (value === '0') { value = false }
             value = !!value
             result[item.name + rule] = value
             break
@@ -143,7 +147,7 @@ export default class Tree {
     try {
       let data: any = vm.run('mock(template)')
       const keys = Object.keys(data)
-      if (keys.length === 1 && keys[0] === '__root__') {data = data.__root__}
+      if (keys.length === 1 && keys[0] === '__root__') { data = data.__root__ }
       return data
     } catch (err) {
       console.error(err)
@@ -173,14 +177,14 @@ export default class Tree {
 
       const recursivelyFillData = (node: any) => {
         for (const key in node) {
-          if (!node.hasOwnProperty(key)) {continue}
+          if (!node.hasOwnProperty(key)) { continue }
           let data = node[key]
           if (_.isObject(data)) {
             recursivelyFillData(data)
             continue
           }
           for (const eKey in extra) {
-            if (!extra.hasOwnProperty(eKey)) {continue}
+            if (!extra.hasOwnProperty(eKey)) { continue }
             const pattern = new RegExp(`\\$${eKey}\\$`, 'g')
             if (data && pattern.test(data)) {
               let result = data.replace(pattern, extra[eKey])
@@ -222,9 +226,9 @@ export default class Tree {
       json,
       (k, v) => {
         k
-        if (typeof v === 'function') {return v.toString()}
-        if (v !== undefined && v !== null && v.exec) {return v.toString()}
-        else {return v}
+        if (typeof v === 'function') { return v.toString() }
+        if (v !== undefined && v !== null && v.exec) { return v.toString() }
+        else { return v }
       },
       2
     )
@@ -422,5 +426,31 @@ export default class Tree {
     }
 
     return memoryProperties
+  }
+
+  public static async ArrayToStandardSchema(properties: Property[], type: propertyType = 'response') {
+    let list = null
+    switch (type) {
+      case 'reqHeader':
+        list = properties.filter(p => p.scope === 'request' && p.pos === POS_TYPE.HEADER)
+        break;
+      case 'reqQuery':
+        list = properties.filter(p => p.scope === 'request' && p.pos === POS_TYPE.QUERY)
+        break;
+      case 'reqBody':
+        list = properties.filter(p => p.scope === 'request' && p.pos === POS_TYPE.BODY)
+        break;
+      default:
+        list = properties.filter(p => p.scope === 'response')
+        break;
+    }
+
+    if (!list?.length) {
+      return {}
+    }
+
+    const data = Tree.ArrayToTreeToTemplateToData(list)
+
+    return await getJSONSchema(data?._root_ || data)
   }
 }

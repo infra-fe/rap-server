@@ -1,13 +1,13 @@
-import { Table, Column, Model, HasMany, AutoIncrement, PrimaryKey, AllowNull, DataType, Default, BelongsTo, ForeignKey, BeforeCreate, BeforeUpdate, BeforeDestroy, BeforeBulkCreate, BeforeBulkDestroy, BeforeBulkUpdate } from 'sequelize-typescript'
-import { User, Repository, Interface } from '../'
-import RedisService, { CACHE_KEY } from '../../service/redis'
 import * as Sequelize from 'sequelize'
+import { AllowNull, AutoIncrement, BeforeBulkCreate, BeforeBulkDestroy, BeforeBulkUpdate, BeforeCreate, BeforeDestroy, BeforeUpdate, BelongsTo, Column, DataType, Default, ForeignKey, HasMany, Model, PrimaryKey, Table } from 'sequelize-typescript'
+import { Interface, Repository, RepositoryVersion, User } from '../'
+import RedisService, { CACHE_KEY } from '../../service/redis'
 
 const Op = Sequelize.Op
 
 @Table({ paranoid: true, freezeTableName: false, timestamps: true })
 export default class Module extends Model<Module> {
-/** hooks */
+  /** hooks */
   @BeforeCreate
   @BeforeUpdate
   @BeforeDestroy
@@ -65,6 +65,10 @@ export default class Module extends Model<Module> {
   @Column
     repositoryId: number
 
+  @ForeignKey(() => RepositoryVersion)
+  @Column
+    versionId: number
+
   @BelongsTo(() => User, 'creatorId')
     creator: User
 
@@ -73,4 +77,7 @@ export default class Module extends Model<Module> {
 
   @HasMany(() => Interface, 'moduleId')
     interfaces: Interface[]
+
+  @BelongsTo(() => RepositoryVersion, 'versionId')
+    repositoryVersion: RepositoryVersion
 }

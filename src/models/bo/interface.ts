@@ -1,8 +1,8 @@
-import { Table, Column, Model, HasMany, AutoIncrement, PrimaryKey, AllowNull, DataType, Default, BelongsTo, ForeignKey, BeforeBulkDestroy, BeforeBulkCreate, BeforeBulkUpdate, BeforeCreate, BeforeUpdate, BeforeDestroy } from 'sequelize-typescript'
-import { User, Module, Repository, Property, Scene } from '../'
-import RedisService, { CACHE_KEY } from '../../service/redis'
 import * as Sequelize from 'sequelize'
+import { AllowNull, AutoIncrement, BeforeBulkCreate, BeforeBulkDestroy, BeforeBulkUpdate, BeforeCreate, BeforeDestroy, BeforeUpdate, BelongsTo, BelongsToMany, Column, DataType, Default, ForeignKey, HasMany, Model, PrimaryKey, Table } from 'sequelize-typescript'
+import { InterfacesTags, Module, Property, Repository, Scene, Tag, User } from '../'
 import { BODY_OPTION } from '../../routes/utils/const'
+import RedisService, { CACHE_KEY } from '../../service/redis'
 
 const Op = Sequelize.Op
 
@@ -43,8 +43,7 @@ export default class Interface extends Model<Interface> {
     }
     if (id) {
       if (options.type === 'BULKDELETE') {
-        const now = Math.floor(Date.now() / 1000)
-        await Scene.update({deletedAt: now}, { where: { interfaceId: id }})
+        await Scene.destroy({ where: { interfaceId: id } })
       }
       const itf = await Interface.findByPk(id)
       await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, itf.repositoryId)
@@ -123,6 +122,9 @@ export default class Interface extends Model<Interface> {
   @Default(0)
   @Column
     isTmpl: boolean
+
+  @BelongsToMany(() => Tag, () => InterfacesTags)
+    tags: Tag[]
 
 }
 

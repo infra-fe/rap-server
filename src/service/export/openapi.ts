@@ -1,17 +1,20 @@
-import { OpenAPI3Collection, TagObject, PathItemObject, ParameterObject, Properties, RequestBody, Responses, SchemaObject } from '../../types/openapi'
-import { Repository, Interface, Module, Property } from '../../models'
+import { Interface, Module, Property, Repository } from '../../models'
 import { POS_TYPE } from '../../models/bo/property'
-import UrlUtils from '../../routes/utils/url'
 import { BODY_OPTION } from '../../routes/utils/const'
 import Tree from '../../routes/utils/tree'
+import UrlUtils from '../../routes/utils/url'
+import { OpenAPI3Collection, ParameterObject, PathItemObject, Properties, RequestBody, Responses, SchemaObject, TagObject } from '../../types/openapi'
 // https://swagger.io/specification/ version 3.0.3 is compatible with swagger
 const VERSION = '3.0.3'
 export default class OpenApiService {
-  public static async export(repositoryId: number): Promise<OpenAPI3Collection> {
+  public static async export(repositoryId: number, versionId?: number): Promise<OpenAPI3Collection> {
     const repo = await Repository.findByPk(repositoryId, {
       include: [{
         model: Module,
         as: 'modules',
+        where: {
+          versionId,
+        },
         include: [{
           model: Interface,
           as: 'interfaces',
@@ -24,6 +27,7 @@ export default class OpenApiService {
     })
     const result: OpenAPI3Collection = {
       openapi: VERSION,
+      servers: [{url: `${repo.basePath || '/'}`}],
       tags: [],
       info: {
         title: `RAP2 Pack ${repo.name}`,
@@ -34,7 +38,6 @@ export default class OpenApiService {
       components: { schemas: {} },
     }
     const schemas: Properties = {}
-    const urls = new Set<string>()
     for (const mod of repo.modules) {
       const modItem: TagObject = {
         name: mod.name,
@@ -53,10 +56,6 @@ export default class OpenApiService {
         const responses: Responses = {}
         const resComponents: Properties = {}
         // handle parameters in path like /{id}/
-        const hostname = itf.url.match(/(\w+):\/\/([^/:]+)(:\d*)?/)
-        if (hostname) {
-          urls.add(hostname[0])
-        }
         const relativeUrl = UrlUtils.getRelative(itf.url).replace(/\:(\w*)/g, '{$1}')
         relativeUrl.replace(/{(\w*)}/g, (match, p) => {
           parameterItem.push({
@@ -148,9 +147,6 @@ export default class OpenApiService {
       }
     }
     result.components.schemas = schemas
-    if (urls.size > 0) {
-      result['servers'] = [...urls].map(x => { return { url: x } })
-    }
     return result
   }
 }

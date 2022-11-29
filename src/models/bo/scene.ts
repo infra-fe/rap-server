@@ -1,7 +1,7 @@
-import { Table, Column, Model, AutoIncrement, PrimaryKey, AllowNull, DataType, Default, BelongsTo, ForeignKey } from 'sequelize-typescript'
-import {  Interface } from '../'
+import { AllowNull, AutoIncrement, BelongsTo, Column, DataType, Default, ForeignKey, Model, PrimaryKey, Table } from 'sequelize-typescript'
+import { Interface } from '../'
 
-@Table({paranoid: true, freezeTableName: false, timestamps: false, underscored: true, tableName: 'scenes_tab'})
+@Table({paranoid: true, freezeTableName: false, timestamps: true, underscored: true, tableName: 'scenes_tab'})
 export default class Scene extends Model<Scene> {
   @AllowNull(false)
   @PrimaryKey
@@ -24,17 +24,6 @@ export default class Scene extends Model<Scene> {
   @ForeignKey(() => Interface)
   @Column
     interfaceId: number
-
-  @AllowNull(false)
-  @Column(DataType.INTEGER.UNSIGNED)
-    createdAt: number
-
-  @AllowNull(false)
-  @Column(DataType.INTEGER.UNSIGNED)
-    updatedAt: number
-
-  @Column(DataType.INTEGER.UNSIGNED)
-    deletedAt: number
 
   @BelongsTo(() => Interface, 'interfaceId')
     interface: Interface

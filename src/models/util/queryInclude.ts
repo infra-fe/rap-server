@@ -1,15 +1,24 @@
 // TODO 2.2 如何缓存重复查询？https://github.com/rfink/sequelize-redis-cache
-import { Helper } from './helper'
-import User from '../bo/user'
-import Repository from '../bo/repository'
+import { IncludeOptions } from 'sequelize'
+import Interface from '../bo/interface'
 import Module from '../bo/module'
 import Organization from '../bo/organization'
-import Interface from '../bo/interface'
 import Property from '../bo/property'
-import { IncludeOptions } from 'sequelize'
+import Repository from '../bo/repository'
+import Tag from '../bo/tag'
+import User from '../bo/user'
+import { Helper } from './helper'
 
 declare interface IQueryInclude {
   [key: string]: IncludeOptions
+}
+
+const SimpleTag: IncludeOptions = {
+  model: Tag,
+  as: 'tags',
+  attributes: { exclude: Helper.exclude.generalities },
+  paranoid: false,
+  required: false,
 }
 
 const QueryInclude: IQueryInclude = {
@@ -35,6 +44,12 @@ const QueryInclude: IQueryInclude = {
     model: User,
     as: 'owner',
     attributes: { exclude: ['password', ...Helper.exclude.generalities] },
+    required: true,
+  },
+  OwnerOpen: {
+    model: User,
+    as: 'owner',
+    attributes: { exclude: ['password', ...Helper.exclude.generalities, 'email'] },
     required: true,
   },
   Locker: {
@@ -78,6 +93,14 @@ const QueryInclude: IQueryInclude = {
     paranoid: false,
     required: false,
   },
+  Tag: {
+    model: Tag,
+    as: 'tags',
+    attributes: { exclude: [] },
+    paranoid: false,
+    required: false,
+  },
+  SimpleTag,
   Collaborators: {
     model: Repository,
     as: 'collaborators',
@@ -97,6 +120,7 @@ const QueryInclude: IQueryInclude = {
         attributes: { exclude: [] },
         required: false,
         include: [
+          SimpleTag,
           {
             model: User,
             as: 'locker',
@@ -125,6 +149,7 @@ const QueryInclude: IQueryInclude = {
         attributes: { exclude: [] },
         required: false,
         include: [
+          SimpleTag,
           {
             model: User,
             as: 'locker',

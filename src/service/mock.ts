@@ -1,20 +1,57 @@
-import { Repository, Interface, Property, DefaultVal, Scene } from '../models'
-import { Op } from 'sequelize'
 import * as JSON5 from 'json5'
-import urlUtils from '../routes/utils/url'
-import Tree from '../routes/utils/tree'
-import * as urlPkg from 'url'
 import * as querystring from 'querystring'
+import { Op } from 'sequelize'
+import * as urlPkg from 'url'
+import { DefaultVal, Interface, Module, Property, Repository, Scene } from '../models'
+import Tree from '../routes/utils/tree'
+import urlUtils from '../routes/utils/url'
+import _ = require('underscore')
 
 import CounterService from './counter'
+import RepositoryVersionService from './repositoryVersion'
 
 const REG_URL_METHOD = /^\/?(get|post|delete|put)\//i
 const attributes: any = { exclude: [] }
+
+function getRelativeURLWithoutParams(url: string) {
+  if (url.indexOf('http://') > -1) {
+    url = url.substring('http://'.length)
+  }
+  if (url.indexOf('https://') > -1) {
+    url = url.substring('https://'.length)
+  }
+  if (url.indexOf('/') > -1) {
+    url = url.substring(url.indexOf('/') + 1)
+  }
+  if (url.indexOf('?') > -1) {
+    url = url.substring(0, url.indexOf('?'))
+  }
+  return url
+}
+function getRelativeBathPath(url: string) {
+  if (!url) {
+    return ''
+  }
+  url = url.replace(/https?:\/\//g, '')
+  if (url.indexOf('?') > -1) {
+    url = url.substring(0, url.indexOf('?'))
+  }
+  if (url.charAt(0) === '/') {
+    url = url.substring(1)
+  }
+  const lastIdx = url.length - 1
+  if (url.charAt(lastIdx) === '/') {
+    url = url.substring(0, lastIdx)
+  }
+  return url
+}
+
 
 export class MockService {
   public static async mock(ctx: any, option: { forceVerify: boolean } = { forceVerify: false }) {
     const { forceVerify } = option
     await CounterService.count()
+    const { __ver = null } = { ...ctx.params, ...ctx.query, ...ctx.request.body }
     let { repositoryId, url } = ctx.params
     let method = ctx.request.method
     repositoryId = +repositoryId
@@ -24,39 +61,41 @@ export class MockService {
       REG_URL_METHOD.lastIndex = -1
       url = url.replace(REG_URL_METHOD, '')
     }
+    const repository = await Repository.findByPk(repositoryId)
+    if (!repository) {
+      ctx.body = {
+        isOk: false,
+        errMsg: 'No matched repository',
+      }
+      return
+    }
 
+    if (repository.basePath) {
+      url = url.replace(getRelativeBathPath(repository.basePath), '')
+    }
     const urlWithoutPrefixSlash = /(\/)?(.*)/.exec(url)[2]
 
-    const repository = await Repository.findByPk(repositoryId)
+
     const collaborators: Repository[] = (await repository.$get('collaborators')) as Repository[]
     let itf: Interface
-
+    const coIds = collaborators.map(item => item.id)
+    // TODO: 目前只支持与主版本协同
+    const modules = await Promise.all(
+      [
+        MockService.getVersionModules(__ver, repositoryId),
+        ...coIds.map(id => MockService.getVersionModules(null, id)),
+      ])
     let matchedItfList = await Interface.findAll({
       attributes,
       where: {
-        repositoryId: [repositoryId, ...collaborators.map(item => item.id)],
+        repositoryId: [repositoryId, ...coIds],
         ...(forceVerify ? { method } : {}),
+        moduleId: _.flatten(modules),
         url: {
           [Op.like]: `%${urlWithoutPrefixSlash}%`,
         },
       },
     })
-
-    function getRelativeURLWithoutParams(url: string) {
-      if (url.indexOf('http://') > -1) {
-        url = url.substring('http://'.length)
-      }
-      if (url.indexOf('https://') > -1) {
-        url = url.substring('https://'.length)
-      }
-      if (url.indexOf('/') > -1) {
-        url = url.substring(url.indexOf('/') + 1)
-      }
-      if (url.indexOf('?') > -1) {
-        url = url.substring(0, url.indexOf('?'))
-      }
-      return url
-    }
 
     // matching by path
     if (matchedItfList.length > 1) {
@@ -253,5 +292,15 @@ export class MockService {
         ctx.body = cbVal + '(' + body + ')'
       }
     }
+  }
+  public static async getVersionModules(version: number | null, repositoryId: number) {
+    const targetVersion = await RepositoryVersionService.findByPk(version, repositoryId)
+    const modules = await Module.findAll({
+      where: {
+        repositoryId,
+        versionId: targetVersion?.id || null,
+      },
+    })
+    return modules?.map(v => v.id) || []
   }
 }

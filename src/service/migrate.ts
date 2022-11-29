@@ -1,17 +1,21 @@
-import { Repository, Module, Interface, Property, User, QueryInclude } from '../models'
-import { SCOPES } from '../models/bo/property'
-import Tree from '../routes/utils/tree'
 import * as JSON5 from 'json5'
 import * as querystring from 'querystring'
 import * as rp from 'request-promise'
+import { Interface, Module, Property, QueryInclude, Repository, User } from '../models'
+import { SCOPES } from '../models/bo/property'
+import Tree from '../routes/utils/tree'
 // import { Op } from 'sequelize'
-import RedisService, { CACHE_KEY } from './redis'
-import MailService from './mail'
-import * as md5 from 'md5'
-const isMd5 = require('is-md5')
 import * as _ from 'lodash'
-import RepositoryService from './repository'
+import { cloneDeep } from 'lodash'
+import * as md5 from 'md5'
 import * as Consts from '../routes/utils/const'
+import { SchemaObject } from '../types/openapi'
+import { removeSwaggerAllOf, SwaggerDataV2 } from '../utils/swaggerUtils'
+import MailService from './mail'
+import RedisService, { CACHE_KEY } from './redis'
+import RepositoryService from './repository'
+import RepositoryVersionService from './repositoryVersion'
+const isMd5 = require('is-md5')
 const Converter = require('api-spec-converter')
 const safeEval = require('notevil')
 
@@ -113,6 +117,9 @@ const REQUEST_TYPE_POS = {
 
 let checkSwaggerResult = []
 let changeTip = '' // 变更信息
+let beansCache = {} // 参数构建时，暂存definitions中对象的解析结果
+let hitCacheCount = 0 // 命中缓存的次数
+let setCacheCount = 0 // 设置缓存的次数
 
 /**
  * Swagger JSON 参数递归处理成数组
@@ -120,12 +127,12 @@ let changeTip = '' // 变更信息
  * @param parent 父级id
  * @param parentName 父级属性name
  * @param depth parameters list 中每个属性的深度
- * @param result swagger转化为数组结果 -- 对swagger参数处理结果
+ * @param result swagger转化为数组结果 -- 对swagger参数处理结果
  * @param definitions swagger $ref definitions， 额外传递过来的swagger的definitions数据, 非计算核心算法
  * @param scope 参数类型 -- 【暂不用】用于参数校验后提示
  * @param apiInfo 接口信息 -- 【暂不用】用于参数校验后提示
  */
-const parse = (parameters, parent, parentName, depth, result, definitions, scope, apiInfo) => {
+const parse = (parameters, parent, parentName, depth, result, definitions, scope, apiInfo, keyMap = new WeakMap()) => {
   for (let key = 0, len = parameters.length; key < len; key++) {
     const param = parameters[key]
 
@@ -138,6 +145,18 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
         depth,
         id: `${parent}-${key}`,
       })
+
+      if (['object'].includes(param.type) && param.properties) {
+        const list = Object.entries(param.properties).map(([key, property]) => ({
+          name: key,
+          parentName: param.name,
+          depth: depth + 1,
+          ...property as object,
+          in: param.in, // response 无所谓，不使用但是request 使用
+          required: (param.required || []).indexOf(key) >= 0,
+        }))
+        parse(list, `${parent}-${key}`, param.name, depth + 1, result, definitions, scope, apiInfo, keyMap)
+      }
     } else {
       // 数组类型或者对象类型
       let paramType = ''
@@ -168,11 +187,42 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
         delete result.find(item => item.id === `${parent}-${key}`).items
       }
 
+      if (beansCache?.[refName]) {
+        const newParent = `${parent}-${key}`
+        let oldParent = null
+        result.push(
+          // 对象进行浅克隆：考虑多层的对象复用
+          ...beansCache[refName].map(item => {
+            oldParent = oldParent || item.parent // 取第一属性的parent，作为旧的parent
+            return {
+              ...item,
+              id: item.id.replace(oldParent, newParent), // 重命名当前节点的ID
+              parent: item.parent.replace(oldParent, newParent), // 替换数据的父节点
+            }
+          })
+        )
+        hitCacheCount++
+        continue
+      }
+
       const ref = definitions[refName]
-      if (ref && ref.properties) {
+      const { properties, items } = ref || {}
+      if (items) {
+        const parentParam = result.find(each => each.name === param.name && each.parent === parent)
+        // 更新父级数据类型
+        parentParam.type = 'array'
+
+        parse([ref], parent, parentName, depth, result, definitions, scope, apiInfo, keyMap)
+      } else if (properties) {
+        if (keyMap.has(ref)) {
+          console.warn('Break the circular reference chain!! Depth is ', depth)
+          continue
+        } else {
+          keyMap.set(ref, true)
+        }
+
         const properties = ref.properties
         const list = []
-
         for (const key in properties) {
           // swagger文档中对definition定义属性又引用自身的情况处理-死循环
           if (properties[key].$ref) {
@@ -235,7 +285,20 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
             })
           }
         }
-        parse(list, `${parent}-${key}`, param.name, depth + 1, result, definitions, scope, apiInfo)
+        parse(list, `${parent}-${key}`, param.name, depth + 1, result, definitions, scope, apiInfo, keyMap)
+        keyMap.delete(ref)
+
+        if (beansCache) {
+          // 设置解析好的definitions缓存
+          const refDefinition = result.filter(item => {
+            // fix: 被引用的对象可能存在多级，即属性也是对象类型
+            return item.parent.indexOf(`${parent}-${key}`) >= 0
+          })
+          if (refDefinition.length > 0) {
+            beansCache[refName] = refDefinition
+            setCacheCount++
+          }
+        }
       }
     }
   }
@@ -285,12 +348,23 @@ const transformRapParams = p => {
   if (p.type === 'boolean') {
     value = p.default === true || p.default === false ? p.default.toString() : 'false'
   }
-  if (p.enum && (p.enum || []).length > 0) { value = p.enum[0] }
+  if (p.enum?.length > 0) {
+    value = `@pick([${p.enum.map(item => JSON.stringify(item)).join(',')}])`
+  }
   if (p.type === 'string' && p.format === 'date-time') { value = '@datetime' }
   if (p.type === 'string' && p.format === 'date') { value = '@date' }
 
   if (p.type === 'array' && p.default) {
     value = typeof p.default === 'object' ? JSON.stringify(p.default) : p.default.toString()
+  }
+  if (p.type === 'array' && p.default === undefined && p.items?.type) {
+    // 基本类型组成的数组，如string[]，number[]
+    const itemType = p.items.type
+    if (itemType === 'string') {
+      value = JSON.stringify(['@ctitle'])
+    } else if (['number', 'integer'].includes(itemType)) {
+      value = JSON.stringify([1])
+    }
   }
   if (/^function/.test(value)) { type = 'Function' } // @mock=function(){} => Function
   if (/^\$order/.test(value)) {
@@ -495,7 +569,8 @@ export default class MigrateService {
     name: string,
     description: string,
     curUserId: number,
-    bodyOption?: string
+    bodyOption?: string,
+    status?: number
   ) {
     const { id } = itf
     const properties = await Property.findAll({ where: { interfaceId: id } })
@@ -510,6 +585,9 @@ export default class MigrateService {
     const updateData = { moduleId, name, description: description || '' }
     if (bodyOption) {
       updateData['bodyOption'] = bodyOption
+    }
+    if (status) {
+      updateData['status'] = status
     }
     await Interface.update(updateData, { where: { id } })
   }
@@ -547,65 +625,56 @@ export default class MigrateService {
   public static async swaggerToModelRequest(
     swagger: SwaggerData,
     parameters: any[],
-    method: string,
     apiInfo: any
   ): Promise<any> {
     let { definitions = {} } = swagger
     const result = []
     definitions = JSON.parse(JSON.stringify(definitions)) // 防止接口之间数据处理相互影响
 
-    if (Array.isArray(parameters) && method === 'get' || method === 'GET') {
-      parse(
-        parameters.filter(item => item.in !== 'body') || [],
-        'root',
-        'root',
-        0,
-        result,
-        definitions,
-        'request',
-        apiInfo
-      )
-    } else if (method === 'post' || method === 'POST') {
-      let list = [] // 外层处理参数数据结果
-      const bodyObj = parameters.find(item => item.in === 'body') // body unique
+    const list = parameters.filter(item => item.in !== 'body') // 外层处理参数数据结果
+    const bodyObj = parameters.find(item => item.in === 'body') // body unique
 
-      if (!bodyObj) { list = [...parameters] }
-      else {
-        const { schema } = bodyObj
-        if (!schema.$ref) {
-          // 没有按照接口规范返回数据结构,默认都是对象
-          list = parameters.filter(item => item.in === 'query' || item.in === 'header')
-        } else {
-          const refName = schema.$ref.split('#/definitions/')[1]
-          const ref = definitions[refName]
+    if (bodyObj) {
+      const {
+        $ref, type, properties, required,
+      } = bodyObj?.schema || {} as SchemaObject
 
-          if (!ref) { list = [...parameters.filter(item => item.in === 'query' || item.in === 'header')] }
-          else {
-            const properties = ref.properties || {}
-            const bodyParameters = []
+      const $bodyRef = $ref
 
-            for (const key in properties) {
-              if (!properties.hasOwnProperty(key)) {
-                continue
-              }
-              bodyParameters.push({
-                name: key,
-                ...properties[key],
-                in: 'body',
-                required: (ref.required || []).indexOf(key) >= 0,
-              })
-            }
-            list = [
-              ...bodyParameters,
-              ...parameters.filter(item => item.in === 'query' || item.in === 'header'),
-            ]
-          }
+      let ref = null
+      if ($bodyRef) {
+        const refName = $bodyRef.split('#/definitions/')[1]
+        ref = definitions[refName]
+      } else if (properties) {
+        ref = {
+          type,
+          properties,
+          required,
         }
       }
-      parse(list, 'root', 'root', 0, result, definitions, 'request', apiInfo)
-    }
 
-    const tree = arrayToTree(JSON.parse(JSON.stringify(result)))
+      if (ref) {
+        const properties = ref.properties || {}
+        const bodyParameters = []
+
+        for (const key in properties) {
+          if (!properties.hasOwnProperty(key)) {
+            continue
+          }
+          bodyParameters.push({
+            name: key,
+            ...properties[key],
+            in: 'body',
+            required: (ref.required || []).indexOf(key) >= 0,
+          })
+        }
+
+        list.push(...bodyParameters)
+      }
+    }
+    parse(list, 'root', 'root', 0, result, definitions, 'request', apiInfo)
+    const successResult = result.filter(item => item.name)
+    const tree = arrayToTree(cloneDeep(successResult))
     return tree
   }
 
@@ -624,20 +693,50 @@ export default class MigrateService {
     let { definitions = {} } = swagger
     definitions = JSON.parse(JSON.stringify(definitions)) // 防止接口之间数据处理相互影响
 
-    const successObj = response['200']
+    let successObj = null
+    let successStatus = 200
+    if (response['200']) {
+      successObj = response['200']
+    } else if (response['201']) {
+      successObj = response['201']
+      successStatus = 201
+    }
     if (!successObj) { return [] }
 
-    const { schema } = successObj
-    if (!schema?.$ref) {
+    const {
+      $ref, // 对象类型
+      properties, // 对象定义
+      type, items, // 数组类型
+      required,
+    } = successObj?.schema || {} as SchemaObject
+
+    let responseRequired = required
+    let responseProperties = properties || items?.properties
+    const $responseRef = $ref || items?.$ref
+    if (!responseProperties && $responseRef) {
+      const refName = $responseRef.split('#/definitions/')[1]
+      responseProperties = definitions[refName]?.properties
+      responseRequired = definitions[refName]?.required
+    }
+
+    if (!responseProperties) {
       // 没有按照接口规范返回数据结构,默认都是对象
       return []
     }
 
     const parameters = []
-    const refName = schema.$ref.split('#/definitions/')[1]
-    const ref = definitions[refName]
-    if (ref && ref.properties) {
-      const properties = ref.properties
+    if (type === 'array') {
+      parameters.push({
+        name: '__root__',
+        type,
+        items,
+        in: 'body',
+        required: true,
+        default: false,
+        description: '',
+      })
+    } else if (responseProperties) {
+      const properties = responseProperties
 
       for (const key in properties) {
         if (!properties.hasOwnProperty(key)) {
@@ -659,7 +758,7 @@ export default class MigrateService {
           name: key,
           ...properties[key],
           in: 'body',
-          required: key === 'success' ? true : (ref.required || []).indexOf(key) >= 0,
+          required: key === 'success' ? true : (responseRequired || []).indexOf(key) >= 0,
           default: key === 'success' ? true : properties[key].default || false,
           description: properties[key].description || description,
         })
@@ -668,7 +767,11 @@ export default class MigrateService {
 
     const result = []
     parse(parameters, 'root', 'root', 0, result, definitions, 'response', apiInfo)
-    const tree = arrayToTree(JSON.parse(JSON.stringify(result)))
+    const successResult = result.filter(item => item.name)
+    const tree = arrayToTree(cloneDeep(successResult))
+    if (successStatus) {
+      tree.status = successStatus
+    }
     return tree
   }
 
@@ -676,7 +779,8 @@ export default class MigrateService {
     repositoryId: number,
     curUserId: number,
     swagger: SwaggerData,
-    cover: number
+    cover: number,
+    versionId?: number
   ): Promise<boolean> {
     checkSwaggerResult = []
     if (!swagger.paths || !swagger.swagger) { return false }
@@ -698,15 +802,36 @@ export default class MigrateService {
       scope: SCOPES,
       interfaceId: number,
       moduleId: number,
-      parentId?: number
+      parentId?: number,
+      oldProperties?: Property[],
+      oldParentId?: number
     ) {
       const { rule, value, type, description } = transformRapParams(p)
       const joinDescription = `${p.description || ''}${(p.description || '') && (description || '') ? '|' : ''}${description || ''}`
+
+      let oldProperty = null
+      if (Array.isArray(oldProperties)) {
+        const index = oldProperties.findIndex(item => {
+          return (
+            // 范围约束
+            item.scope === scope
+            && item.parentId === (oldParentId || -1)
+
+            // 字段属性约束
+            && item.name === p.name
+            && item.type === type
+          )
+        })
+        if (index >= 0) {
+          oldProperty = oldProperties.splice(index, 1)?.[0]
+        }
+      }
+
       const pCreated = await Property.create({
         scope,
         name: p.name,
-        rule,
-        value,
+        rule: oldProperty?.rule || rule,
+        value: oldProperty?.value || value,
         type,
         required: p.required,
         description: joinDescription,
@@ -721,30 +846,33 @@ export default class MigrateService {
       })
 
       for (const subParam of p.children) {
-        processParam(subParam, scope, interfaceId, moduleId, pCreated.id)
+        processParam(subParam, scope, interfaceId, moduleId, pCreated.id, oldProperties, oldProperty?.id)
       }
     }
 
     let { tags = [] } = swagger
-    const { paths = {}, host = '' } = swagger
+    const { paths = {} } = swagger
     const pathTag: SwaggerTag[] = []
 
     // 获取所有的TAG: 处理ROOT TAG中没有的情况
     for (const action in paths) {
       if (!paths.hasOwnProperty(action)) { continue }
-      const apiObj = paths[action][Object.keys(paths[action])[0]]
-      // 处理没有path没有tag的情况
-      if (!Array.isArray(apiObj.tags)) {
-        apiObj.tags = ['default']
-      }
-      const index = pathTag.findIndex((it: SwaggerTag) => {
-        return apiObj.tags.length > 0 && it.name === apiObj.tags[0]
-      })
-      if (index < 0 && apiObj.tags.length > 0) {
-        pathTag.push({
-          name: apiObj.tags[0],
-          description: tags.find(item => item.name === apiObj.tags[0])?.description || '',
+      const methodList = Object.keys(paths[action])
+      for (const method of methodList) {
+        const apiObj = paths[action][method]
+        // 处理没有path没有tag的情况
+        if (!Array.isArray(apiObj.tags)) {
+          apiObj.tags = ['default']
+        }
+        const index = pathTag.findIndex((it: SwaggerTag) => {
+          return apiObj.tags.length > 0 && it.name === apiObj.tags[0]
         })
+        if (index < 0 && apiObj.tags.length > 0) {
+          pathTag.push({
+            name: apiObj.tags[0],
+            description: tags.find(item => item.name === apiObj.tags[0])?.description || '',
+          })
+        }
       }
     }
     tags = pathTag
@@ -758,7 +886,7 @@ export default class MigrateService {
       const [repositoryModules] = await Promise.all([
         Repository.findByPk(repositoryId, {
           attributes: { exclude: [] },
-          include: [QueryInclude.RepositoryHierarchy],
+          include: [{ ...QueryInclude.RepositoryHierarchy, where: { versionId } }],
           order: [
             [{ model: Module, as: 'modules' }, 'priority', 'asc'],
             [
@@ -785,331 +913,107 @@ export default class MigrateService {
           priority: mCounter++,
           creatorId: curUserId,
           repositoryId: repositoryId,
+          versionId,
         })
       } else {
         mod = repository.modules[findIndex]
       }
       for (const action in paths) {
         if (!paths.hasOwnProperty(action)) { continue }
-        const apiObj = paths[action][Object.keys(paths[action])[0]]
-        const method = Object.keys(paths[action])[0]
-        const actionTags0 = apiObj.tags[0]
-        const url = action
-        // 处理summary展示为undefined的情况
-        if (!apiObj.summary) { apiObj.summary = '' }
-        const summary = apiObj.summary
+        const methodList = Object.keys(paths[action])
+        for (const method of methodList) {
+          const apiObj = paths[action][method]
+          // const method = Object.keys(paths[action])[0]
+          const actionTags0 = apiObj.tags[0]
+          const url = action
+          // 处理summary展示为undefined的情况
+          if (!apiObj.summary) {
+            apiObj.summary = apiObj.operationId || ''
+          }
+          const summary = apiObj.summary
 
-        if (actionTags0 === tag.name) {
-          // 判断接口是否存在该模块中，如果不存在则创建接口，存在则更新接口信息
-          const [repositoryModules] = await Promise.all([
-            Repository.findByPk(repositoryId, {
-              attributes: { exclude: [] },
-              include: [QueryInclude.RepositoryHierarchy],
-              order: [
-                [{ model: Module, as: 'modules' }, 'priority', 'asc'],
-                [
-                  { model: Module, as: 'modules' },
-                  { model: Interface, as: 'interfaces' },
-                  'priority',
-                  'asc',
+          if (actionTags0 === tag.name) {
+            // 判断接口是否存在该模块中，如果不存在则创建接口，存在则更新接口信息
+            const [repositoryModules] = await Promise.all([
+              Repository.findByPk(repositoryId, {
+                attributes: { exclude: [] },
+                include: [QueryInclude.RepositoryHierarchy],
+                order: [
+                  [{ model: Module, as: 'modules' }, 'priority', 'asc'],
+                  [
+                    { model: Module, as: 'modules' },
+                    { model: Interface, as: 'interfaces' },
+                    'priority',
+                    'asc',
+                  ],
                 ],
-              ],
-            }),
-          ])
-          repository = {
-            ...repositoryModules.toJSON(),
-          }
+              }),
+            ])
+            repository = {
+              ...repositoryModules.toJSON(),
+            }
 
-          const request = await this.swaggerToModelRequest(
-            swagger,
-            apiObj.parameters || [],
-            method,
-            { url, summary }
-          )
-          const response = await this.swaggerToModelRespnse(swagger, apiObj.responses || {}, {
-            url,
-            summary,
-          })
-          // 处理完每个接口请求参数后，如果-遇到第一个存在接口不符合规范就全部返回
-          if (checkSwaggerResult.length > 0) { break }
-
-          // 判断对应模块是否存在该接口
-          // const index = repository.modules.findIndex(item => {
-          //   return (
-          //     item.id === mod.id &&
-          //     item.interfaces.findIndex(it => (it.url || '') === url) >= 0
-          //   ) // 已经存在接口
-          // })
-
-          // if (index < 0) {
-          // 创建接口
-          const itfUrl = `${host ? `https://${host}` : ''}${url.replace('-test', '')}`
-          let itf = await Interface.findOne({
-            where: { repositoryId, url: itfUrl, method: method.toUpperCase() },
-          })
-          if (itf && !isCreate && !itf.lockerId) {
-            await this.coverInterface(itf, mod.id, apiObj.summary, apiObj.description, curUserId)
-          } else {
-            itf = await Interface.create({
-              moduleId: mod.id,
-              name: `${apiObj.summary}`,
-              description: apiObj.description,
-              url: itfUrl,
-              priority: iCounter++,
-              creatorId: curUserId,
-              repositoryId: repositoryId,
-              method: method.toUpperCase(),
+            const request = await this.swaggerToModelRequest(
+              swagger,
+              apiObj.parameters || [],
+              { url, summary }
+            )
+            const response = await this.swaggerToModelRespnse(swagger, apiObj.responses || {}, {
+              url,
+              summary,
             })
+            // 处理完每个接口请求参数后，如果-遇到第一个存在接口不符合规范就全部返回
+            if (checkSwaggerResult.length > 0) { break }
+
+            // 判断对应模块是否存在该接口
+            // const index = repository.modules.findIndex(item => {
+            //   return (
+            //     item.id === mod.id &&
+            //     item.interfaces.findIndex(it => (it.url || '') === url) >= 0
+            //   ) // 已经存在接口
+            // })
+
+            // if (index < 0) {
+            // 创建接口
+            const itfUrl = `${url.replace('-test', '')}`
+            let itf = await Interface.findOne({
+              where: { repositoryId, url: itfUrl, method: method.toUpperCase() },
+            })
+            // console.log('import:', repositoryId, itfUrl, method, !isCreate, itf?.lockerId, itf && !isCreate && !itf.lockerId)
+            let oldProperties: Property[] = null
+            if (itf && !isCreate && !itf.lockerId) {
+              oldProperties = await Property.findAll({ where: { interfaceId: itf.id } })
+              await this.coverInterface(itf, mod.id, apiObj.summary, apiObj.description, curUserId, null, response.status)
+            } else {
+              itf = await Interface.create({
+                moduleId: mod.id,
+                name: `${apiObj.summary}`,
+                description: apiObj.description,
+                url: itfUrl,
+                priority: iCounter++,
+                status: response.status || 200,
+                creatorId: curUserId,
+                repositoryId: repositoryId,
+                method: method.toUpperCase(),
+              })
+            }
+
+            for (const p of request.children || []) {
+              try {
+                await processParam(p, SCOPES.REQUEST, itf.id, mod.id, -1, oldProperties)
+              } catch (e) {
+                console.log('processParam request error:', e.message)
+              }
+            }
+            for (const p of response.children || []) {
+              try {
+                await processParam(p, SCOPES.RESPONSE, itf.id, mod.id, -1, oldProperties)
+              } catch (e) {
+                console.log('processParam response error:', e.message)
+              }
+            }
+            oldProperties = null // 释放内存
           }
-
-          for (const p of request.children || []) {
-            await processParam(p, SCOPES.REQUEST, itf.id, mod.id)
-          }
-          for (const p of response.children || []) {
-            await processParam(p, SCOPES.RESPONSE, itf.id, mod.id)
-          }
-          // } else {
-          //   const findApi = repository.modules[index].interfaces.find(
-          //     item => item.url.indexOf(url) >= 0,
-          //   )
-          //   // 更新接口
-          //   await Interface.update(
-          //     {
-          //       moduleId: mod.id,
-          //       name: `${apiObj.summary}`,
-          //       description: apiObj.description,
-          //       url: `${host ? `https://${host}` : ''}${url.replace('-test', '')}`,
-          //       repositoryId: repositoryId,
-          //       method: method.toUpperCase(),
-          //     },
-          //     { where: { id: findApi.id } },
-          //   )
-
-          //   // 获取已经存在的接口的属性信息，并处理深度和parentName
-          //   let A_ExistsPropertiesOld = JSON.parse(JSON.stringify(findApi.properties))
-          //   A_ExistsPropertiesOld = JSON.parse(
-          //     JSON.stringify(treeToArray(arrayToTreeProperties(A_ExistsPropertiesOld))),
-          //   )
-          //   let A_ExistsProperties = A_ExistsPropertiesOld.map(property => {
-          //     return {
-          //       ...property,
-          //       parentName:
-          //         (A_ExistsPropertiesOld.find(item => item.id === property.parentId) || {}).name ||
-          //         'root',
-          //     }
-          //   })
-
-          //   const B_SwaggerProperties_Request = treeToArray(request)
-          //   const B_SwaggerProperties_Response = treeToArray(response)
-          //   let PropertyId = 0,
-          //     PriorityId = 0
-
-          //   let maxDepth_Request = 0,
-          //     maxDepth_Response = 0,
-          //     maxDepth_A_ExistsProperties = 0
-          //   // 计算B的最大深度-- request
-          //   B_SwaggerProperties_Request.map(item => {
-          //     if (item.depth > maxDepth_Request) {
-          //       maxDepth_Request = item.depth
-          //     }
-          //     return item
-          //   })
-
-          //   // 计算B的最大深度-- response
-          //   B_SwaggerProperties_Response.map(item => {
-          //     if (item.depth > maxDepth_Response) {
-          //       maxDepth_Response = item.depth
-          //     }
-          //     return item
-          //   })
-
-          //   // 计算A的最大深度
-          //   A_ExistsProperties.map(item => {
-          //     if (item.depth > maxDepth_A_ExistsProperties) {
-          //       maxDepth_A_ExistsProperties = item.depth
-          //     }
-          //     return item
-          //   })
-
-          //   const properties = []
-
-          //   /**
-          //    * 批量更新接口属性名称，类型，规则，默认值等处理
-          //    * @param BFilterByDepth
-          //    * @param depth
-          //    * @param scope
-          //    */
-          //   const updateProperties = (BFilterByDepth, depth, scope) => {
-          //     for (const key in BFilterByDepth) {
-          //       const bValue = BFilterByDepth[key]
-          //       const index = A_ExistsProperties.findIndex(
-          //         item =>
-          //           item.name === bValue.name &&
-          //           item.depth === bValue.depth &&
-          //           item.parentName === bValue.parentName &&
-          //           item.scope === scope,
-          //       )
-          //       const { type, description, rule, value } = transformRapParams(bValue)
-          //       const joinDescription = `${bValue.description || ''}${
-          //         (bValue.description || '') && (description || '') ? '|' : ''
-          //         }${description || ''}`
-
-          //       if (index >= 0) {
-          //         // 属性存在 ---修改：类型；是否必填；属性说明；不修改规则和默认值(前端可能正在mock)
-          //         // 如何判断有更新
-          //         if (type !== A_ExistsProperties[index].type) {
-          //           // 类型变更了
-          //           changeTip = `${changeTip}<br/>接口名称：${apiObj.summary} [更新属性：${A_ExistsProperties[index].name}类型由“${A_ExistsProperties[index].type}”变更为“${type}]”`
-          //         }
-          //         if (!!bValue.required !== A_ExistsProperties[index].required) {
-          //           // 是否必填变更
-          //           changeTip = `${changeTip}<br/>接口名称：${apiObj.summary} [更新属性：${A_ExistsProperties[index].name}是否必填由“${A_ExistsProperties[index].required}”变更为“${bValue.required}]”`
-          //         }
-
-          //         if (
-          //           joinDescription !== A_ExistsProperties[index].description &&
-          //           bValue.name !== 'success' &&
-          //           bValue.name !== 'errorCode' &&
-          //           bValue.name !== 'errorMessage'
-          //         ) {
-          //           // 描述信息变更
-          //           changeTip = `${changeTip}<br/>接口名称：${apiObj.summary} [更新属性：${
-          //             A_ExistsProperties[index].name
-          //             }属性简介由“${A_ExistsProperties[index].description ||
-          //             '无'}”变更为“${joinDescription}”]`
-          //         }
-
-          //         properties.push({
-          //           ...A_ExistsProperties[index],
-          //           rule:
-          //             !A_ExistsProperties[index].rule && !A_ExistsProperties[index].value
-          //               ? rule
-          //               : A_ExistsProperties[index].rule,
-          //           value:
-          //             !A_ExistsProperties[index].rule && !A_ExistsProperties[index].value
-          //               ? value
-          //               : A_ExistsProperties[index].value,
-          //           type,
-          //           required: !!bValue.required, // 是否必填更改
-          //           description: `${joinDescription}`,
-          //         })
-          //       } else {
-          //         changeTip = `${changeTip}<br/>接口名称：${apiObj.summary} [属性添加：${
-          //           bValue.name
-          //           }；类型：${type} ；简介: ${bValue.description || ''}${
-          //           bValue.description || '' ? '|' : ''
-          //           }${description || ''} ]`
-          //         // 属性不存在
-          //         if (depth === 0) {
-          //           properties.push({
-          //             id: `memory-${++PropertyId}`,
-          //             scope,
-          //             type,
-          //             pos: REQUEST_TYPE_POS[bValue.in],
-          //             name: bValue.name,
-          //             rule,
-          //             value,
-          //             description: `${joinDescription}`,
-          //             parentId: -1,
-          //             priority: `${++PriorityId}`,
-          //             interfaceId: findApi.id,
-          //             moduleId: mod.id,
-          //             repositoryId,
-          //             memory: true,
-          //             depth: bValue.depth,
-          //             changeType: 'add',
-          //           })
-          //         } else {
-          //           // 找到父级属性信息
-          //           const parent = properties.find(
-          //             it =>
-          //               it.depth === bValue.depth - 1 &&
-          //               it.name === bValue.parentName &&
-          //               it.scope === scope,
-          //           )
-          //           properties.push({
-          //             id: `memory-${++PropertyId}`,
-          //             scope,
-          //             type,
-          //             pos: REQUEST_TYPE_POS[bValue.in],
-          //             name: bValue.name,
-          //             rule,
-          //             value,
-          //             description: `${joinDescription}`,
-          //             parentId: parent.id,
-          //             priority: `${++PriorityId}`,
-          //             interfaceId: findApi.id,
-          //             moduleId: mod.id,
-          //             repositoryId,
-          //             memory: true,
-          //             depth: bValue.depth,
-          //             changeType: 'add',
-          //           })
-          //         }
-          //       }
-          //     }
-          //   }
-
-          //   /** 删除属性计算 */
-          //   const deleteProperties = (AFilterByDepth, scope) => {
-          //     for (const key in AFilterByDepth) {
-          //       const aValue = AFilterByDepth[key]
-          //       let index = -1
-          //       if (scope === 'request') {
-          //         index = B_SwaggerProperties_Request.findIndex(
-          //           item =>
-          //             item.name === aValue.name &&
-          //             item.depth === aValue.depth &&
-          //             item.parentName === aValue.parentName,
-          //         )
-          //       } else if (scope === 'response') {
-          //         index = B_SwaggerProperties_Response.findIndex(
-          //           item =>
-          //             item.name === aValue.name &&
-          //             item.depth === aValue.depth &&
-          //             item.parentName === aValue.parentName,
-          //         )
-          //       }
-
-          //       const { type, description } = transformRapParams(aValue)
-          //       if (index < 0) {
-          //         // A 存在，B不存在
-          //         changeTip = `${changeTip} <br/> 接口名称：${apiObj.summary} [属性删除：${
-          //           aValue.name
-          //           }；类型：${type} ；简介: ${aValue.description || ''} ${
-          //           description ? `${aValue.description ? '|' : ''}${description}` : ''
-          //           } ]`
-          //       }
-          //     }
-          //   }
-          //   for (let depth = 0; depth <= maxDepth_A_ExistsProperties; depth++) {
-          //     const AFilterByDepth = A_ExistsProperties.filter(
-          //       item => item.depth === depth && item.scope === 'request',
-          //     )
-          //     deleteProperties(AFilterByDepth, 'request')
-          //   }
-          //   for (let depth = 0; depth <= maxDepth_A_ExistsProperties; depth++) {
-          //     const AFilterByDepth = A_ExistsProperties.filter(
-          //       item => item.depth === depth && item.scope === 'response',
-          //     )
-          //     deleteProperties(AFilterByDepth, 'response')
-          //   }
-
-          //   for (let depth = 0; depth <= maxDepth_Request; depth++) {
-          //     const BFilterByDepth = B_SwaggerProperties_Request.filter(
-          //       item => item.depth === depth,
-          //     )
-          //     updateProperties(BFilterByDepth, depth, 'request')
-          //   }
-
-          //   for (let depth = 0; depth <= maxDepth_Response; depth++) {
-          //     const BFilterByDepth = B_SwaggerProperties_Response.filter(
-          //       item => item.depth === depth,
-          //     )
-          //     updateProperties(BFilterByDepth, depth, 'response')
-          //   }
-          //   await propertiesUpdateService(properties, findApi.id)
-          // }
         }
       }
     }
@@ -1126,11 +1030,11 @@ export default class MigrateService {
     version: number,
     mode: string,
     repositoryId: number,
-    cover: number
+    cover: number,
+    versionId?: number
   ): Promise<any> {
     try {
       if (!swagger) { return { result: false, code: 'swagger' } }
-      const { host = '', info = {} } = swagger
       if (swagger.openapi && swagger.openapi.startsWith('3.0')) {
         const { spec } = await Converter.convert({
           from: 'openapi_3',
@@ -1139,14 +1043,18 @@ export default class MigrateService {
         })
         swagger = spec
       }
+      const isAuto = !curUserId
+      const hashValue = md5(JSON.stringify(swagger))
+      const { host = '', info = {}, schemes, basePath = '' } = swagger
       if (swagger.swagger === SWAGGER_VERSION[version]) {
+        let repos
         let result
         let mailRepositoryName = '',
           mailRepositoryId = 0,
           mailRepositoryMembers = []
 
         if (mode === 'manual') {
-          const repos = await Repository.findByPk(repositoryId, {
+          repos = await Repository.findByPk(repositoryId, {
             attributes: { exclude: [] },
             include: [
               QueryInclude.Creator,
@@ -1156,18 +1064,37 @@ export default class MigrateService {
               QueryInclude.Collaborators,
             ],
           })
-          const { creatorId, members, collaborators, ownerId, name } = repos
+          const { organizationId, creatorId, members, collaborators, ownerId, name, hashValue: oldHashValue } = repos
 
+          // 手动导入跳过hash校验，仅OpenAPI导入时进行hash校验
+          if (isAuto && hashValue === oldHashValue) {
+            return { result: true, code: 'success', msg: 'sameData' }
+          }
+
+
+          let baseUrl = ''
+          if (basePath) {
+            const path = basePath.replace(/https?:\/\//g, '')
+            baseUrl = basePath.startsWith('/') ? path : '/' + path
+          }
+          if (host) {
+            baseUrl = host + baseUrl
+          }
+          if (schemes && schemes.length > 0) {
+            baseUrl = schemes[0] + (host ? '://' : ':/') + baseUrl
+          }
           const body = {
             creatorId: creatorId,
-            organizationId: orgId,
+            organizationId: orgId || organizationId,
+            basePath: baseUrl,
             memberIds: (members || []).map((item: any) => item.id),
             collaboratorIds: (collaborators || []).map((item: any) => item.id),
             ownerId,
             visibility: true,
             name,
             id: repositoryId,
-            description: `[host=${host}]${info.title || ''}`,
+            description: `${info.title || ''}${info.version ? `(${info.version})` : ''}${info.title || info.version ? '\n' : ''}${info.description || ''}`,
+            hashValue: isAuto ? hashValue : '',
           }
           result = await Repository.update(body, { where: { id: repositoryId } })
 
@@ -1193,16 +1120,34 @@ export default class MigrateService {
         }
 
         if (result[0] || result.id) {
+          const start_time = Date.now()
+          beansCache = {}
+          hitCacheCount = 0
+          setCacheCount = 0
+
+          swagger = removeSwaggerAllOf(swagger as SwaggerDataV2) as SwaggerData
+          // console.log('ldt-removeSwaggerAllOf:', JSON.stringify(swagger))
+
           const bol = await this.importRepoFromSwaggerProjectData(
             mode === 'manual' ? repositoryId : result.id,
-            curUserId,
+            curUserId || repos.creatorId,
             swagger,
-            cover
+            cover,
+            versionId
           )
+
+          beansCache = null // 释放内存
+          console.log(`Importing swagger data into repository(${repositoryId}). Duration: ${(Date.now() - start_time) / 1000}s, hitCacheCount/setCacheCount: ${hitCacheCount}/${setCacheCount}.`)
 
           if (!bol) {
             return { result: checkSwaggerResult, code: 'checkSwagger' }
           } else {
+            await RepositoryService.addHistoryLog({
+              entityId: mode === 'manual' ? repositoryId : result.id,
+              entityType: Consts.ENTITY_TYPE.REPOSITORY,
+              changeLog: `[repository has been updated by importing swagger data]`,
+              userId: curUserId || repos.creatorId,
+            })
             await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, result.id)
             if (changeTip.length > 0) {
               const to = mailRepositoryMembers.map(item => {
@@ -1315,7 +1260,21 @@ export default class MigrateService {
     await RedisService.delCache(CACHE_KEY.REPOSITORY_GET, repositoryId)
   }
   /** 可以直接让用户把自己本地的 data 数据导入到 RAP 中 */
-  public static async importRepoFromJSON(data: JsonData, curUserId: number, createRepo: boolean = false, pkId?: number, cover?: number) {
+  public static async importRepoFromJSON({
+    data,
+    curUserId,
+    createRepo = false,
+    pkId,
+    cover,
+    versionId = null,
+  }: {
+    data: JsonData
+    curUserId: number
+    createRepo?: boolean
+    pkId?: number
+    cover?: number
+    versionId?: number
+  }) {
     function parseJSON(str: string) {
       try {
         const data = JSON5.parse(str)
@@ -1324,7 +1283,7 @@ export default class MigrateService {
         return {}
       }
     }
-
+    let targetVersionId = null
     if (createRepo) {
       if (pkId === undefined) {
         throw new Error('orgId is essential while createRepo = true')
@@ -1332,6 +1291,7 @@ export default class MigrateService {
       const repo = await Repository.create({
         name: data.name,
         description: data.description,
+        basePath: data.basePath,
         visibility: true,
         ownerId: curUserId,
         creatorId: curUserId,
@@ -1344,13 +1304,19 @@ export default class MigrateService {
         throw new Error('can not find repo')
       }
       data.id = pkId
+      if (versionId) {
+        const version = await RepositoryVersionService.findByPk(versionId, pkId)
+        if (version) {
+          targetVersionId = version.id
+        }
+      }
     }
     const isCreate = cover ? cover === COVER_TYPE.CREATE : true
     const repositoryId = data.id
     await Promise.all(
       data.modules.map(async (modData, index) => {
         let mod = await Module.findOne({
-          where: { repositoryId, name: modData.name },
+          where: { repositoryId, name: modData.name, versionId: targetVersionId },
         })
         if (!mod) {
           mod = await Module.create({
@@ -1359,6 +1325,7 @@ export default class MigrateService {
             priority: index + 1,
             creatorId: curUserId,
             repositoryId,
+            versionId: targetVersionId,
           })
         }
         await Promise.all(
@@ -1478,6 +1445,7 @@ interface JsonData {
    */
   id: number
   name?: string
+  basePath?: string
   description?: string
   modules: Array<{
     name: string
@@ -1568,12 +1536,14 @@ interface SwaggerInfo {
   version?: string
 }
 
-interface SwaggerData {
+export interface SwaggerData {
   openapi?: string
+  basePath?: string
   swagger: string
   host: string
   tags: SwaggerTag[]
   paths: object
   definitions?: object
   info?: SwaggerInfo
+  schemes?: string[]
 }

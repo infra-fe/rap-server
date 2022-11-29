@@ -1,0 +1,2 @@
+ALTER TABLE `Repositories`
+  ADD COLUMN `basePath` VARCHAR(256) DEFAULT NULL;

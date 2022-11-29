@@ -1,25 +1,28 @@
 // TODO 2.1 大数据测试，含有大量模块、接口、属性的仓库
-import router from './router'
+import { Op } from 'sequelize'
 import * as _ from 'underscore'
-import Pagination from './utils/pagination'
-import { User, Organization, Repository, Module, Interface, Property, QueryInclude, Logger, DefaultVal } from '../models'
-import Tree from './utils/tree'
-import { AccessUtils, ACCESS_TYPE } from './utils/access'
-import * as Consts from './utils/const'
+import * as Yup from 'yup'
+import { DefaultVal, Interface, InterfacesTags, Logger, Module, Organization, Property, QueryInclude, Repository, Tag, User } from '../models'
+import MigrateService, { COVER_TYPE } from '../service/migrate'
+import OrganizationService from '../service/organization'
+import MigrateProcessService from '../service/process/migrateService'
 import RedisService, { CACHE_KEY } from '../service/redis'
 import RepositoryService from '../service/repository'
-import MigrateService from '../service/migrate'
-import OrganizationService from '../service/organization'
-import { Op } from 'sequelize'
 import { isLoggedIn } from './base'
+import router from './router'
+import { AccessUtils, ACCESS_TYPE } from './utils/access'
+import * as Consts from './utils/const'
+import Pagination from './utils/pagination'
+import Tree from './utils/tree'
 
-import { initRepository, initModule } from './utils/helper'
-import { nanoid } from 'nanoid'
-import { LOG_SEPERATOR, LOG_SUB_SEPERATOR } from '../models/bo/historyLog'
-import { ENTITY_TYPE } from './utils/const'
-import { IPager } from '../types'
 import * as JSON5 from 'json5'
+import { nanoid } from 'nanoid'
+import { LOG_SEPERATOR } from '../models/bo/historyLog'
 import { MoveOp } from '../models/bo/interface'
+import RepositoryVersionService from '../service/repositoryVersion'
+import { IPager } from '../types'
+import { COMMON_ERROR_RES, ENTITY_TYPE } from './utils/const'
+import { initModule, initRepository } from './utils/helper'
 
 router.get('/app/get', async (ctx, next) => {
   const data: any = {}
@@ -32,7 +35,7 @@ router.get('/app/get', async (ctx, next) => {
     user: User,
   }
   for (const name in hooks) {
-    if (!query[name]) {continue}
+    if (!query[name]) { continue }
     data[name] = await hooks[name].findByPk(query[name])
   }
   ctx.body = {
@@ -65,8 +68,8 @@ router.get('/repository/list', async (ctx) => {
   }
 
   // tslint:disable-next-line:no-null-keyword
-  if (user) {Object.assign(where, { ownerId: user, organizationId: null })}
-  if (organization) {Object.assign(where, { organizationId: organization })}
+  if (user) { Object.assign(where, { ownerId: user, organizationId: null }) }
+  if (organization) { Object.assign(where, { organizationId: organization }) }
   if (name) {
     Object.assign(where, {
       [Op.or]: [
@@ -101,7 +104,7 @@ router.get('/repository/list', async (ctx) => {
     order: [['updatedAt', 'DESC']],
   })
   const repoData = await Promise.all(repositories.map(async (repo) => {
-    const canUserEdit = await AccessUtils.canUserAccess(
+    const canUserEdit = await AccessUtils.canUserEdit(
       ACCESS_TYPE.REPOSITORY_SET,
       ctx.session.id,
       repo.id
@@ -209,15 +212,33 @@ router.get('/repository/get', async (ctx) => {
     return
   }
   const excludeProperty = ctx.query.excludeProperty || false
-  const canUserEdit = await AccessUtils.canUserAccess(
+  const canUserEdit = await AccessUtils.canUserEdit(
     ACCESS_TYPE.REPOSITORY_SET,
     ctx.session.id,
-    +ctx.query.id,
-    ctx.query.token as string
+    +ctx.query.id
   )
+  let versionId = null
+  if (ctx.query.versionId) {
+    try {
+      versionId = Yup.object({
+        versionId: Yup.number().optional(),
+      }).validateSync(ctx.query).versionId
+    } catch (e) {
+      ctx.body = COMMON_ERROR_RES.ERROR_PARAMS
+      return
+    }
+  }
   // 分开查询减少查询时间
+  const QueryWithVersion = excludeProperty
+    ? QueryInclude.RepositoryHierarchyExcludeProperty
+    : QueryInclude.RepositoryHierarchy
+  const repositoryId = +ctx.query.id
+  const repositoryVersion = await RepositoryVersionService.findByPk(versionId, repositoryId)
+  if (repositoryVersion) {
+    versionId = repositoryVersion.id
+  }
   const [repositoryOmitModules, repositoryModules] = await Promise.all([
-    Repository.findByPk(+ctx.query.id, {
+    Repository.findByPk(repositoryId, {
       attributes: { exclude: [] },
       include: [
         QueryInclude.Creator,
@@ -228,12 +249,10 @@ router.get('/repository/get', async (ctx) => {
         QueryInclude.Collaborators,
       ],
     }),
-    Repository.findByPk(+ctx.query.id, {
+    Repository.findByPk(repositoryId, {
       attributes: { exclude: [] },
       include: [
-        excludeProperty
-          ? QueryInclude.RepositoryHierarchyExcludeProperty
-          : QueryInclude.RepositoryHierarchy,
+        {...QueryWithVersion, where: {versionId}},
       ],
       order: [
         [{ model: Module, as: 'modules' }, 'priority', 'asc'],
@@ -246,9 +265,21 @@ router.get('/repository/get', async (ctx) => {
       ],
     }),
   ])
+  const version = repositoryVersion ? _.omit(repositoryVersion, ['repositoryId', 'deletedAt', 'createdAt']) : null
+
+  const repositoryModulesJSON = repositoryModules.toJSON()
+  repositoryModulesJSON.modules?.forEach(module => {
+    module.interfaces?.forEach((itf) => {
+      itf.tags?.forEach(tag => {
+        delete tag['InterfacesTags']
+      })
+    })
+  })
+
   const repository: Partial<Repository> & { canUserEdit: boolean } = {
     ...repositoryOmitModules.toJSON(),
-    ...repositoryModules.toJSON(),
+    ...repositoryModulesJSON,
+    version,
     canUserEdit,
   }
 
@@ -366,7 +397,7 @@ router.post('/repository/update', isLoggedIn, async (ctx, next) => {
     repositoryId: id,
   })
   // 加入 & 退出
-  if (!ctx.prevAssociations || !ctx.nextAssociations) {return}
+  if (!ctx.prevAssociations || !ctx.nextAssociations) { return }
   const prevIds = ctx.prevAssociations.map((item: any) => item.id)
   const nextIds = ctx.nextAssociations.map((item: any) => item.id)
   const joined: number[] = _.difference(nextIds, prevIds)
@@ -387,7 +418,7 @@ router.post('/repository/transfer', isLoggedIn, async (ctx) => {
     return
   }
   const body: any = {}
-  if (ownerId) {body.ownerId = ownerId} // 转移给其他用户
+  if (ownerId) { body.ownerId = ownerId } // 转移给其他用户
   if (organizationId) {
     body.organizationId = organizationId // 转移给其他团队，同时转移给该团队拥有者
     body.ownerId = (await Organization.findByPk(organizationId)).ownerId
@@ -413,7 +444,7 @@ router.get('/repository/remove', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) {return}
+  if (ctx.body.data === 0) { return }
   const { id } = ctx.query
   await Logger.create({
     userId: ctx.session.id,
@@ -462,9 +493,17 @@ router.get('/module/count', async (ctx) => {
 
 router.get('/module/list', async (ctx) => {
   const where: any = {}
-  const { repositoryId, name } = ctx.query
-  if (repositoryId) {where.repositoryId = repositoryId}
-  if (name) {where.name = { [Op.like]: `%${name}%` }}
+  const { repositoryId, name, versionId } = ctx.query
+  if (repositoryId) { where.repositoryId = repositoryId }
+  if (name) { where.name = { [Op.like]: `%${name}%` } }
+  where.versionId = versionId || null
+  if (repositoryId && !versionId) {
+    const repositoryVersion = await RepositoryVersionService.findByPk(null, +repositoryId)
+    if (repositoryVersion) {
+      where.versionId = repositoryVersion.id
+    }
+  }
+
   ctx.body = {
     data: await Module.findAll({
       attributes: { exclude: [] },
@@ -520,7 +559,7 @@ router.post('/module/update', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) {return}
+  if (ctx.body.data === 0) { return }
   const mod = ctx.request.body
   await Logger.create({
     userId: ctx.session.id,
@@ -531,7 +570,7 @@ router.post('/module/update', isLoggedIn, async (ctx, next) => {
 })
 
 router.post('/module/move', isLoggedIn, async ctx => {
-  const { modId, op } = ctx.request.body
+  const { modId, op, versionId } = ctx.request.body
   const repositoryId = ctx.request.body.repositoryId
 
   if (!(await RepositoryService.canUserMoveModule(ctx.session.id, modId, repositoryId))) {
@@ -539,7 +578,7 @@ router.post('/module/move', isLoggedIn, async ctx => {
     return
   }
 
-  await RepositoryService.moveModule(op, modId, repositoryId)
+  await RepositoryService.moveModule(op, modId, repositoryId, '副本', versionId || null)
 
   ctx.body = {
     data: {
@@ -562,7 +601,7 @@ router.get('/module/remove', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) {return}
+  if (ctx.body.data === 0) { return }
   const id = +ctx.query.id
   const mod = await Module.findByPk(id, { paranoid: false })
   await Logger.create({
@@ -603,9 +642,9 @@ router.get('/interface/list', async (ctx) => {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  if (repositoryId) {where.repositoryId = repositoryId}
-  if (moduleId) {where.moduleId = moduleId}
-  if (name) {where.name = { [Op.like]: `%${name}%` }}
+  if (repositoryId) { where.repositoryId = repositoryId }
+  if (moduleId) { where.moduleId = moduleId }
+  if (name) { where.name = { [Op.like]: `%${name}%` } }
   ctx.body = {
     data: await Interface.findAll({
       attributes: { exclude: [] },
@@ -659,7 +698,7 @@ router.get('/interface/get', async (ctx) => {
   }
 
   const itf = await Interface.findByPk(id, {
-    include: [QueryInclude.Locker],
+    include: [QueryInclude.Locker, QueryInclude.SimpleTag],
     attributes: { exclude: [] },
   })
 
@@ -682,7 +721,10 @@ router.get('/interface/get', async (ctx) => {
     return
   }
 
-  const itfJSON: { [k: string]: any } = itf.toJSON()
+  const itfJSON = itf.toJSON()
+  itfJSON.tags?.forEach(tag => {
+    delete tag['InterfacesTags']
+  })
 
   let properties: any[] = await Property.findAll({
     attributes: { exclude: [] },
@@ -704,6 +746,31 @@ router.get('/interface/get', async (ctx) => {
   ctx.body = Tree.stringifyWithFunctonAndRegExp({ data: itfJSON })
 })
 
+/**
+ * 更新接口的标签列表
+ * @param tagIds
+ * @param itf
+ */
+async function updateInterfaceTags(tagIds: number[], itf: Interface) {
+  if (!itf) {
+    return
+  }
+
+  let newTags = null
+  if (tagIds?.length) {
+    newTags = await Tag.findAll({
+      where: {
+        id: {
+          [Op.in]: tagIds,
+        },
+      },
+    })
+  }
+  itf.$set('tags', newTags)
+
+  await itf.save()
+}
+
 router.post('/interface/create', isLoggedIn, async (ctx, next) => {
   const creatorId = ctx.session.id
   const body = Object.assign(ctx.request.body, { creatorId })
@@ -718,6 +785,10 @@ router.post('/interface/create', isLoggedIn, async (ctx, next) => {
   } else {
     created = await Interface.create(body)
   }
+
+  // 添加tag绑定
+  updateInterfaceTags(body.tagIds, created)
+
   // await initInterface(created)
   ctx.body = {
     data: {
@@ -742,7 +813,9 @@ router.post('/interface/update', isLoggedIn, async (ctx, next) => {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  const itf = await Interface.findByPk(summary.id)
+  const itf = await Interface.findByPk(summary.id, {
+    include: [QueryInclude.Tag],
+  })
   const itfChangeLog: string[] = []
   itf.name !== summary.name && itfChangeLog.push(`[name] \`${itf.name}\` => \`${summary.name}\``)
   itf.url !== summary.url && itfChangeLog.push(`URL \`${itf.url || '[empty url]'}\` => \`${summary.url}\``)
@@ -752,18 +825,34 @@ router.post('/interface/update', isLoggedIn, async (ctx, next) => {
     entityType: Consts.ENTITY_TYPE.INTERFACE,
     changeLog: `[Interface] ${itf.name}(${itf.url || '[empty url]'}) [modified] ${itfChangeLog.join(LOG_SEPERATOR)}`,
     userId: ctx.session.id,
+    modId: itf.moduleId,
   })
+
+  // 更新tag绑定
+  updateInterfaceTags(summary.tagIds, itf)
+
   await Interface.update(summary, {
     where: { id: summary.id },
   })
+
+  const newItf = await Interface.findByPk(summary.id, {
+    include: [QueryInclude.SimpleTag],
+  })
+  const itfJSON = newItf.toJSON()
+  itfJSON.tags?.forEach(tag => {
+    delete tag['InterfacesTags']
+  })
+  if (summary.properties) {
+    await RepositoryService.updateProperties(newItf.id, summary.properties, newItf, ctx.session.id)
+  }
   ctx.body = {
     data: {
-      itf: await Interface.findByPk(summary.id),
+      itf: itfJSON,
     },
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) {return}
+  if (ctx.body.data === 0) { return }
   const itf = ctx.request.body
   await Logger.create({
     userId: ctx.session.id,
@@ -775,7 +864,7 @@ router.post('/interface/update', isLoggedIn, async (ctx, next) => {
 })
 
 router.post('/interface/move', isLoggedIn, async ctx => {
-  const { modId, itfId, op } = ctx.request.body
+  const { modId, itfId, op, interfaceName } = ctx.request.body
   const itf = await Interface.findByPk(itfId)
   const repositoryId = ctx.request.body.repositoryId || itf.repositoryId
   if (!(await RepositoryService.canUserMoveInterface(ctx.session.id, itfId, repositoryId, modId))) {
@@ -783,7 +872,7 @@ router.post('/interface/move', isLoggedIn, async ctx => {
     return
   }
 
-  await RepositoryService.moveInterface(op, itfId, repositoryId, modId)
+  await RepositoryService.moveInterface(op, itfId, repositoryId, modId, interfaceName)
 
   ctx.body = {
     data: {
@@ -806,15 +895,18 @@ router.get('/interface/remove', async (ctx, next) => {
     changeLog: `[Interface] ${itf.name} (${itf.url}) [deleted],[data is backup]。`,
     userId: ctx.session.id,
     relatedJSONData: JSON.stringify({ 'itf': itf, 'properties': properties }),
+    modId: itf.moduleId,
   })
   const result = await Interface.destroy({ where: { id } })
   await Property.destroy({ where: { interfaceId: id } })
+  // 删除接口绑定的标签
+  await InterfacesTags.destroy({ where: { interfaceId: id } })
   ctx.body = {
     data: result,
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) {return}
+  if (ctx.body.data === 0) { return }
   const id = +ctx.query.id
   const itf = await Interface.findByPk(id, { paranoid: false })
   await Logger.create({
@@ -927,10 +1019,10 @@ router.get('/property/count', async (ctx) => {
 router.get('/property/list', async (ctx) => {
   const where: any = {}
   const { repositoryId, moduleId, interfaceId, name } = ctx.query
-  if (repositoryId) {where.repositoryId = repositoryId}
-  if (moduleId) {where.moduleId = moduleId}
-  if (interfaceId) {where.interfaceId = interfaceId}
-  if (name) {where.name = { [Op.like]: `%${name}%` }}
+  if (repositoryId) { where.repositoryId = repositoryId }
+  if (moduleId) { where.moduleId = moduleId }
+  if (interfaceId) { where.interfaceId = interfaceId }
+  if (name) { where.name = { [Op.like]: `%${name}%` } }
   ctx.body = {
     data: await Property.findAll({ where }),
   }
@@ -974,13 +1066,11 @@ router.post('/property/update', isLoggedIn, async (ctx) => {
 
 router.post('/properties/update', isLoggedIn, async (ctx, next) => {
   const itfId = +ctx.query.itf
-  let needBackup = false
-  let changeCount = 0
   let { properties } = ctx.request.body as { properties: Property[]; summary: Interface }
   const { summary } = ctx.request.body as { properties: Property[]; summary: Interface }
   properties = Array.isArray(properties) ? properties : [properties]
 
-  let itf = await Interface.findByPk(itfId)
+  const itf = await Interface.findByPk(itfId)
 
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.INTERFACE_SET, ctx.session.id, itfId)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
@@ -992,115 +1082,7 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
     await itf.save()
   }
 
-
-  const itfPropertiesChangeLog: string[] = []
-
-  // 删除不在更新列表中的属性
-  // DONE 2.2 清除幽灵属性：子属性的父属性不存在（原因：前端删除父属性后，没有一并删除后代属性，依然传给了后端）
-  // SELECT * FROM properties WHERE parentId!=-1 AND parentId NOT IN (SELECT id FROM properties)
-  /* 查找和删除脚本
-    SELECT * FROM properties
-      WHERE
-        deletedAt is NULL AND
-        parentId != - 1 AND
-        parentId NOT IN (
-          SELECT * FROM (
-            SELECT id FROM properties WHERE deletedAt IS NULL
-          ) as p
-        )
-  */
-
-  const pLog = (p: Property, title: string) => ` \`${title}\` ${p.scope === 'request' ? '[request]' : '[response]'} [parameter] \`${p.name}\` ${p.description ? '(' + p.description + ')' : ''}`
-
-  const existingProperties = properties.filter((item: any) => !item.memory)
-  const existingPropertyIds = existingProperties.map(x => x.id)
-
-  const originalProperties = await Property.findAll({ where: { interfaceId: itfId } })
-
-  const backupJSON = JSON.stringify({ 'itf': itf, 'properties': originalProperties })
-
-  const deletedProperties = originalProperties.filter(x => existingPropertyIds.indexOf(x.id) === -1)
-
-  const deletedPropertyLog: string[] = []
-  for (const deletedProperty of deletedProperties) {
-    deletedPropertyLog.push(pLog(deletedProperty, ' [deleted] '))
-  }
-  changeCount += deletedProperties.length
-  deletedPropertyLog.length && itfPropertiesChangeLog.push(deletedPropertyLog.join(LOG_SUB_SEPERATOR))
-
-  let result = await Property.destroy({
-    where: {
-      id: { [Op.notIn]: existingProperties.map((item: any) => item.id) },
-      interfaceId: itfId,
-    },
-  })
-
-  const updatedPropertyLog: string[] = []
-  // 更新已存在的属性
-  for (const item of existingProperties) {
-    const changed: string[] = []
-    const o = originalProperties.filter(x => x.id === item.id)[0]
-    if (o) {
-      if (o.name !== item.name) {
-        changed.push(`[name] ${o.name} => ${item.name}`)
-      }
-      if (o.required !== item.required) {
-        changed.push(`[require] ${o.required ? 'true' : 'false'} => ${item.required}`)
-      }
-      // mock rules 不记入日志
-      if (o.type !== item.type) {
-        changed.push(`[type] ${o.type} => ${item.type}`)
-      }
-      changed.length && updatedPropertyLog.push(`${pLog(item, '[updated]')} ${changed.join(' ')}`)
-      changeCount += changed.length
-    }
-    const affected = await Property.update(item, {
-      where: { id: item.id },
-    })
-    result += affected[0]
-  }
-  updatedPropertyLog.length && itfPropertiesChangeLog.push(updatedPropertyLog.join(LOG_SUB_SEPERATOR))
-  // 插入新增加的属性
-  const newProperties = properties.filter((item: any) => item.memory)
-  const memoryIdsMap: any = {}
-  const addedPropertyLog: string[] = []
-  for (const item of newProperties) {
-    const created = await Property.create(Object.assign({}, item, {
-      id: undefined,
-      parentId: -1,
-      priority: item.priority || Date.now(),
-    }))
-    addedPropertyLog.push(pLog(item, '[added]'))
-    memoryIdsMap[item.id] = created.id
-    item.id = created.id
-    result += 1
-  }
-  changeCount += newProperties.length
-  addedPropertyLog.length && itfPropertiesChangeLog.push(addedPropertyLog.join(LOG_SUB_SEPERATOR))
-  // 同步 parentId
-  for (const item of newProperties) {
-    const parentId = memoryIdsMap[item.parentId] || item.parentId
-    await Property.update({ parentId }, {
-      where: { id: item.id },
-    })
-  }
-  itf = await Interface.findByPk(itfId, {
-    include: (QueryInclude.RepositoryHierarchy as any).include[0].include,
-  })
-
-  if (changeCount >= 5) {
-    needBackup = true
-  }
-
-  if (itfPropertiesChangeLog.length) {
-    await RepositoryService.addHistoryLog({
-      entityId: itf.id,
-      entityType: Consts.ENTITY_TYPE.INTERFACE,
-      changeLog: `[Interface] ${itf.name}(${itf.url}) [parameter] [modified]： ${itfPropertiesChangeLog.join(LOG_SEPERATOR)}${needBackup ? ', [data is backup]。' : ''}`,
-      userId: ctx.session.id,
-      ...needBackup ? { relatedJSONData: backupJSON } : {},
-    })
-  }
+  const result = await RepositoryService.updateProperties(itfId, properties, itf, ctx.session.id)
 
   ctx.body = {
     data: {
@@ -1110,7 +1092,7 @@ router.post('/properties/update', isLoggedIn, async (ctx, next) => {
   }
   return next()
 }, async (ctx) => {
-  if (ctx.body.data === 0) {return}
+  if (ctx.body.data === 0) { return }
   const itf = await Interface.findByPk(ctx.query.itf as string, {
     attributes: { exclude: [] },
   })
@@ -1138,6 +1120,10 @@ router.get('/property/remove', isLoggedIn, async (ctx) => {
 
 router.post('/repository/import', isLoggedIn, async (ctx) => {
   const { orgId, projectData, repositoryId, swagger, cover } = ctx.request.body
+  let versionId = null
+  if (ctx.request.body.versionId) {
+    versionId = +ctx.request.body.versionId
+  }
   if (orgId && !await AccessUtils.canUserAccess(ACCESS_TYPE.ORGANIZATION_SET, ctx.session.id, orgId)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
@@ -1151,7 +1137,14 @@ router.post('/repository/import', isLoggedIn, async (ctx) => {
   let message = ''
   try {
     const data = projectData ? JSON5.parse(projectData).data : swagger
-    await MigrateService.importRepoFromJSON(data, ctx.session.id, !!!repositoryId, repositoryId || orgId, cover)
+    await MigrateService.importRepoFromJSON({
+      data,
+      curUserId: ctx.session.id,
+      createRepo: !!!repositoryId,
+      pkId: repositoryId || orgId,
+      cover,
+      versionId,
+    })
     success = true
   } catch (ex) {
     success = false
@@ -1163,18 +1156,51 @@ router.post('/repository/import', isLoggedIn, async (ctx) => {
   }
 })
 
+const ImportSwaggerLimit = {
+  pathLimit: 20,  // 接口数量限制
+  definitionLimit: 10, // Bean类型数量限制
+}
 router.post('/repository/importswagger', isLoggedIn, async (ctx) => {
   const { orgId, repositoryId, swagger, version = 1, mode = 'manual', cover } = ctx.request.body
+  let versionId = null
+  if (ctx.request.body.versionId) {
+    versionId = +ctx.request.body.versionId
+  }
   // 权限判断
   if (!await AccessUtils.canUserAccess(ACCESS_TYPE.REPOSITORY_SET, ctx.session.id, repositoryId)) {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
 
-  const result = await MigrateService.importRepoFromSwaggerDocUrl(orgId, ctx.session.id, swagger, version, mode, repositoryId, cover)
+  const { paths, definitions, components } = swagger
+
+  // 校验接口数量和Bean对象数量
+  const outPathLimit = paths && Object.keys(paths).length > ImportSwaggerLimit.pathLimit
+  const outDefinitionLimit = definitions && Object.keys(definitions).length > ImportSwaggerLimit.definitionLimit
+    || components?.schemas && Object.keys(components.schemas).length > ImportSwaggerLimit.definitionLimit
+
+  if (outPathLimit || outDefinitionLimit) {
+    MigrateProcessService.import({
+      repositoryId: repositoryId,
+      mode: cover === COVER_TYPE.CREATE ? 'add' : 'cover',
+      dataType: 'Swagger',
+      data: swagger,
+      userId: ctx.session.id,
+      versionId,
+    })
+    ctx.body = {
+      isOk: true,
+      type: 'async',
+      message: `Swagger data is oversize. Importing by async method.`,
+    }
+    return
+  }
+
+  const result = await MigrateService.importRepoFromSwaggerDocUrl(orgId, ctx.session.id, swagger, version, mode, repositoryId, cover, versionId)
 
   ctx.body = {
     isOk: result.code === 'success',
+    type: 'sync',
     message: result.code === 'success' ? '导入成功' : '导入失败',
     repository: {
       id: 1,
@@ -1222,7 +1248,10 @@ router.post('/repository/importJSON', isLoggedIn, async ctx => {
     return
   }
   try {
-    await MigrateService.importRepoFromJSON(data, ctx.session.id)
+    await MigrateService.importRepoFromJSON({
+      data,
+      curUserId: ctx.session.id,
+    })
     ctx.body = {
       isOk: true,
       repository: {
@@ -1257,9 +1286,13 @@ router.get('/:type/history/:itfId', isLoggedIn, async ctx => {
     }
     return
   }
+  let versionId = null
+  if (ctx.query.versionId) {
+    versionId = +ctx.query.versionId
+  }
   ctx.body = {
     isOk: true,
-    data: await RepositoryService.getHistoryLog(+ctx.params.itfId, type, pager),
+    data: await RepositoryService.getHistoryLog(+ctx.params.itfId, type, pager, versionId),
   }
 })
 

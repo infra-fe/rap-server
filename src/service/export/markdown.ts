@@ -1,7 +1,7 @@
-import { Repository, Interface, Module, Property } from '../../models'
-import dedent from '../../helpers/dedent'
 import * as moment from 'moment'
 import { asTree } from 'treeify'
+import dedent from '../../helpers/dedent'
+import { Interface, Module, Property, Repository } from '../../models'
 
 const arrayToTree = (list: any[]): any => {
   const getValue = (parent: any) => {
@@ -23,12 +23,15 @@ const arrayToTree = (list: any[]): any => {
 }
 
 export default class PostmanService {
-  public static async export(repositoryId: number, origin: string): Promise<string> {
+  public static async export(repositoryId: number, origin: string, versionId?: number): Promise<string> {
     const repo = await Repository.findByPk(repositoryId, {
       include: [
         {
           model: Module,
           as: 'modules',
+          where: {
+            versionId,
+          },
           include: [
             {
               model: Interface,
@@ -44,11 +47,11 @@ export default class PostmanService {
         },
       ],
     })
-
+    const repoLink = `/repository/editor?id=${repositoryId}${versionId? `&versionId=${versionId}` : ''}`
     const result = dedent`
     ***本文档由 Rap2 (https://github.com/thx/rap2-delos) 生成***
 
-    ***本项目仓库：[${origin}/repository/editor?id=${repositoryId}](${origin}/repository/editor?id=${repositoryId}) ***
+    ***本项目仓库：[${origin}${repoLink}](${origin}${repoLink}) ***
 
     ***生成日期：${moment().format('YYYY-MM-DD HH:mm:ss')}***
 
@@ -65,7 +68,7 @@ export default class PostmanService {
         * 类型：${intf.method}
         * 状态码：${intf.status}
         * 简介：${intf.description || '无'}
-        * Rap地址：[${origin}/repository/editor?id=${repositoryId}&mod=${m.id}&itf=${intf.id}](${origin}/repository/editor?id=${repositoryId}&mod=${m.id}&itf=${intf.id})
+        * Rap地址：[${origin}${repoLink}&mod=${m.id}&itf=${intf.id}](${origin}${repoLink}&mod=${m.id}&itf=${intf.id})
         * 请求接口格式：
 
         \`\`\`

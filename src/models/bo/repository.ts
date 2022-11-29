@@ -1,6 +1,7 @@
-import { Table, Column, Model, HasMany, AutoIncrement, PrimaryKey, AllowNull, DataType, Default, BelongsTo, BelongsToMany, ForeignKey, BeforeUpdate, BeforeCreate, BeforeDestroy, BeforeBulkCreate, BeforeBulkUpdate, BeforeBulkDestroy } from 'sequelize-typescript'
-import { User, Organization, Module, Interface, RepositoriesCollaborators } from '../'
+import { AllowNull, AutoIncrement, BeforeBulkCreate, BeforeBulkDestroy, BeforeBulkUpdate, BeforeCreate, BeforeDestroy, BeforeUpdate, BelongsTo, BelongsToMany, Column, DataType, Default, ForeignKey, HasMany, Model, PrimaryKey, Table } from 'sequelize-typescript'
+import { Interface, Module, Organization, RepositoriesCollaborators, User } from '../'
 import RedisService, { CACHE_KEY } from '../../service/redis'
+import RepositoryVersion from './repositoryVersion'
 
 @Table({ paranoid: true, freezeTableName: false, timestamps: true })
 export default class Repository extends Model<Repository> {
@@ -26,68 +27,77 @@ export default class Repository extends Model<Repository> {
   @AutoIncrement
   @PrimaryKey
   @Column
-  id: number
+    id: number
 
   @AllowNull(false)
   @Column(DataType.STRING(256))
-  name: string
+    name: string
 
   @Column(DataType.TEXT)
-  description: string
+    description: string
 
   @Column(DataType.STRING(256))
-  logo: string
+    logo: string
 
   @Column(DataType.STRING(32))
-  token: string
+    token: string
 
   @AllowNull(false)
   @Default(true)
   @Column({ comment: 'true:public, false:private' })
-  visibility: boolean
+    visibility: boolean
+
+  @Column(DataType.STRING(256))
+    basePath: string
+
+  @Column(DataType.STRING(128))
+    hashValue: string
 
   @ForeignKey(() => User)
   @Column
-  ownerId: number
+    ownerId: number
 
   @ForeignKey(() => Organization)
   @Column
-  organizationId: number
+    organizationId: number
 
   @ForeignKey(() => User)
   @Column
-  creatorId: number
+    creatorId: number
 
   @ForeignKey(() => User)
   @Column
-  lockerId: number
+    lockerId: number
 
   @BelongsTo(() => User, 'creatorId')
-  creator: User
+    creator: User
 
   @BelongsTo(() => User, 'ownerId')
-  owner: User
+    owner: User
 
   @BelongsTo(() => Organization, 'organizationId')
-  organization: Organization
+    organization: Organization
 
   @BelongsTo(() => User, 'lockerId')
-  locker: User
+    locker: User
 
   @BelongsToMany(() => User, 'repositories_members', 'repositoryId', 'userId')
-  members: User[]
+    members: User[]
 
   @HasMany(() => Module, 'repositoryId')
-  modules: Module[]
+    modules: Module[]
 
-  @HasMany(() => Module, 'repositoryId')
-  interfaces: Interface[]
+  @HasMany(() => Interface, 'repositoryId')
+    interfaces: Interface[]
+
+  @HasMany(() => RepositoryVersion, 'repositoryId')
+    versions: RepositoryVersion[]
 
   @BelongsToMany(() => Repository, () => RepositoriesCollaborators, 'repositoryId', 'collaboratorId')
-  collaborators: Repository[]
+    collaborators: Repository[]
 
   @BelongsToMany(() => Repository, () => RepositoriesCollaborators, 'collaboratorId')
-  repositories: Repository[]
+    repositories: Repository[]
 
   collaboratorIdstring?: string
   memberIds?: number[]

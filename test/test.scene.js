@@ -1,14 +1,14 @@
 /* global describe, it, before */
-let app = require('../dist/scripts/app').default
-let request = require('supertest').agent(app.listen())
-let should = require('chai').should()
-let Random = require('mockjs').Random
+const app = require('../dist/scripts/app').default
+const request = require('supertest').agent(app.listen())
+const should = require('chai').should()
+const Random = require('mockjs').Random
 const { Scene } = require('../dist/models')
 const { mockUsers, mockRepository, prepare } = require('./helper')
 
 describe('Property', () => {
-  let users = mockUsers()
-  let repository = mockRepository()
+  const users = mockUsers()
+  const repository = mockRepository()
   prepare(request, should, users, repository)
   let mod = {}
   let itf = {}
@@ -24,12 +24,12 @@ describe('Property', () => {
       headers: json,
       repositoryId: repository.id,
       moduleId: mod.id,
-      interfaceId: itf.id
+      interfaceId: itf.id,
     }
     done()
   })
 
-  let validScene = (scene) => {
+  const validScene = (scene) => {
     scene.sceneName.should.be.a('string')
     scene.interfaceId.should.be.a('number')
   }
@@ -94,7 +94,7 @@ describe('Property', () => {
       .expect(200)
       .end((err, res) => {
         should.not.exist(err)
-        res.body.data.should.be.a('array').have.length.within(1, 15)
+        res.body.data.should.eq(1)
         done()
       })
   })

@@ -67,4 +67,12 @@ export class AccessUtils {
     }
     return curUserId === 1
   }
+
+  public static canUserEdit(accessType: ACCESS_TYPE, curUserId: number, entityId: number) {
+    if (accessType === ACCESS_TYPE.REPOSITORY_GET || accessType === ACCESS_TYPE.REPOSITORY_SET) {
+      return RepositoryService.canUserEditRepository(curUserId, entityId)
+    }
+
+    return false
+  }
 }

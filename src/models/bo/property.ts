@@ -1,7 +1,8 @@
-import { Table, Column, Model, AutoIncrement, PrimaryKey, AllowNull, DataType, Default, BelongsTo, ForeignKey } from 'sequelize-typescript'
-import { User, Interface, Module, Repository } from '../'
+import { AllowNull, AutoIncrement, BelongsTo, Column, DataType, Default, ForeignKey, Model, PrimaryKey, Table } from 'sequelize-typescript'
+import { Interface, Module, Repository, User } from '../'
 
 export enum SCOPES { REQUEST = 'request', RESPONSE = 'response', SCRIPT = 'script' }
+// eslint-disable-next-line max-len
 export enum TYPES { STRING = 'String', NUMBER = 'Number', BOOLEAN = 'Boolean', OBJECT = 'Object', ARRAY = 'Array', FUNCTION = 'Function', REGEXP = 'RegExp', Null = 'Null' }
 
 @Table({ paranoid: true, freezeTableName: false, timestamps: true })

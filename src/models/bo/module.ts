@@ -1,6 +1,6 @@
 import * as Sequelize from 'sequelize'
 import { AllowNull, AutoIncrement, BeforeBulkCreate, BeforeBulkDestroy, BeforeBulkUpdate, BeforeCreate, BeforeDestroy, BeforeUpdate, BelongsTo, Column, DataType, Default, ForeignKey, HasMany, Model, PrimaryKey, Table } from 'sequelize-typescript'
-import { Interface, Repository, RepositoryVersion, User } from '../'
+import { Interface, Repository, User } from '../'
 import RedisService, { CACHE_KEY } from '../../service/redis'
 
 const Op = Sequelize.Op
@@ -65,7 +65,6 @@ export default class Module extends Model<Module> {
   @Column
     repositoryId: number
 
-  @ForeignKey(() => RepositoryVersion)
   @Column
     versionId: number
 
@@ -77,7 +76,4 @@ export default class Module extends Model<Module> {
 
   @HasMany(() => Interface, 'moduleId')
     interfaces: Interface[]
-
-  @BelongsTo(() => RepositoryVersion, 'versionId')
-    repositoryVersion: RepositoryVersion
 }

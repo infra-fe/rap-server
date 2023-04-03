@@ -9,6 +9,7 @@ import * as body from 'koa-body'
 import router from '../routes'
 import config from '../config'
 import { startTask } from '../service/task'
+import '../service/autoImportQueue'
 
 const app = new Koa()
 const appAny: any = app

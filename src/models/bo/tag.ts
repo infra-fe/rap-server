@@ -1,5 +1,5 @@
-import { AllowNull, AutoIncrement, BelongsToMany, Column, DataType, Default, ForeignKey, Model, PrimaryKey, Table } from "sequelize-typescript";
-import { Interface, InterfacesTags, Repository } from "../";
+import { AllowNull, AutoIncrement, BelongsToMany, Column, DataType, Default, ForeignKey, Model, PrimaryKey, Table } from 'sequelize-typescript'
+import { Interface, InterfacesTags, Repository } from '../'
 
 @Table({ paranoid: true, freezeTableName: false, timestamps: true, underscored: true, tableName: 'tags_tab' })
 export default class Tag extends Model<Tag> {
@@ -7,25 +7,25 @@ export default class Tag extends Model<Tag> {
   @PrimaryKey
   @AutoIncrement
   @Column(DataType.INTEGER.UNSIGNED)
-  id: number
+    id: number
 
   @AllowNull(false)
   @Column(DataType.STRING(64))
-  name: string
+    name: string
 
   @Default(null)
   @Column(DataType.STRING(32))
-  level: string
+    level: string
 
   @Default(null)
   @ForeignKey(() => Repository)
   @Column
-  repositoryId: number
+    repositoryId: number
 
   @Default(null)
   @Column(DataType.STRING(32))
-  color: string
+    color: string
 
   @BelongsToMany(() => Tag, () => InterfacesTags)
-  interfaces: Interface[]
+    interfaces: Interface[]
 }

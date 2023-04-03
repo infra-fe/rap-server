@@ -157,7 +157,8 @@ export class MockService {
       const list = await Interface.findAll({
         attributes: ['id', 'url', 'method'],
         where: {
-          repositoryId: [repositoryId, ...collaborators.map(item => item.id)],
+          repositoryId: [repositoryId, ...collaborators.map((item) => item.id)],
+          moduleId: _.flatten(modules),
           method,
         },
       })

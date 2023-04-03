@@ -1,5 +1,8 @@
 import { merge, omit } from 'lodash'
 import { OpenAPIV2 } from 'openapi-types'
+import * as JsonRefs from 'json-refs'
+
+const Converter = require('api-spec-converter')
 
 type SwaggerData = OpenAPIV2.Document
 type SchemaObject = OpenAPIV2.SchemaObject
@@ -13,6 +16,69 @@ type Parameters = OpenAPIV2.Parameters[0]
 type Response = OpenAPIV2.Response
 
 export type SwaggerDataV2 = SwaggerData
+
+/**
+ * 把Swagger 2.0/OpenAPI 3.0数据统一转化为Swagger2.0格式
+ * @param sourceData
+ * @returns
+ */
+export async function convertToSwaggerV2(sourceData: string | object): Promise<SwaggerData> {
+  // 解析数据源
+  let source = null
+  if (typeof sourceData === 'string') {
+    try {
+      source = JSON.parse(sourceData)
+    } catch {
+      // eslint-disable-line
+    }
+  } else {
+    source = sourceData
+  }
+
+  // 数据源数据转化
+  if (source?.swagger) {
+    // Swagger 2.0，直接返回
+    return source
+  }
+
+  if (source?.openapi?.startsWith('3.0')) {
+    // OpenAPI 3.0，转化为Swagger 2.0
+    const { spec } = await Converter.convert({
+      from: 'openapi_3',
+      to: 'swagger_2',
+      source,
+    })
+    return spec
+  }
+
+  if (source?.openapi?.startsWith('3.1')) {
+    // OpenAPI 3.1，暂时无法处理
+    return null
+  }
+
+  // 其他
+  return null
+}
+
+
+/**
+ * 移除Swagger中的$ref
+ * @param swagger
+ * @param clearDefinitions 是否清空无用的definitions
+ * @returns
+ */
+export async function removeSwaggerRefs(swagger: SwaggerData, clearDefinitions?: boolean): Promise<SwaggerData> {
+  const { resolved } = await JsonRefs.resolveRefs(swagger)
+
+  if (clearDefinitions) {
+    return {
+      ...resolved,
+      definitions: {},
+    } as SwaggerData
+  }
+
+  return resolved as SwaggerData
+}
 
 /**
  * 移除Swagger中的allOf/oneOf/anyOf
@@ -52,9 +118,10 @@ function mergeAllOf(definition: SchemaObject, definitions: DefinitionsObject, ca
 
   // 处理对象数组类型
   if (items) {
+    const oneItem = Array.isArray(items) ? items[0] : items
     return {
       ...definition,
-      items: mergeAllOf(definition.items, definitions, cacheResult) as ItemsObject,
+      items: mergeAllOf(oneItem, definitions, cacheResult) as ItemsObject,
     }
   }
 
@@ -82,12 +149,12 @@ function mergeAllOf(definition: SchemaObject, definitions: DefinitionsObject, ca
   // 复合类型：allOf
   if (allOf) {
     // 仅有一个，直接使用
-    if (allOf.length === 1) {
-      return {
-        ...newDefinition,
-        ...allOf[0] as SchemaObject,
-      }
-    }
+    // if (allOf.length === 1) {
+    //   return {
+    //     ...newDefinition,
+    //     ...allOf[0] as SchemaObject,
+    //   }
+    // }
 
     // 有多个定义，进行merge
     const refs = allOf.filter(item => !!item.$ref).map(item => item.$ref)

@@ -15,7 +15,7 @@ const LIST_CHECK_SCHEMA = Yup.object({
   repositoryId: Yup.number().integer(),
   name: Yup.string().optional(),
   start: Yup.number().integer().default(0).min(0),
-  limit: Yup.number().integer().default(25).max(100),
+  limit: Yup.number().integer().default(25).max(1000),
 })
 
 const CREATE_CHECK_SCHEMA = Yup.object({

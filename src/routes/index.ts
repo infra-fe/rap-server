@@ -14,5 +14,6 @@ require('./scene')
 require('./tag')
 require('./validate')
 require('./proxy')
+require('./autoImport')
 
 export default router

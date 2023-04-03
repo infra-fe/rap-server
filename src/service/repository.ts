@@ -9,6 +9,7 @@ import OrganizationService from './organization'
 import RepositoryVersionService from './repositoryVersion'
 import { LOG_SEPERATOR, LOG_SUB_SEPERATOR } from '../models/bo/historyLog'
 import * as Consts from '../routes/utils/const'
+import { Transaction } from 'sequelize'
 export default class RepositoryService {
   public static async canUserAccessRepository(
     userId: number,
@@ -26,7 +27,12 @@ export default class RepositoryService {
       },
     })
     if (memberExistsNum > 0) { return true }
-    return OrganizationService.canUserAccessOrganization(userId, repo.organizationId)
+    if(repo.visibility === true) {
+      return OrganizationService.canUserAccessOrganization(userId, repo.organizationId)
+    } else {
+      // 私有仓库 不判断团队的公开性 只判断是否是团队成员
+      return OrganizationService.isOrganizationMember(userId, repo.organizationId)
+    }
   }
 
   public static async canUserEditRepository(userId: number, repositoryId: number) {
@@ -294,10 +300,10 @@ export default class RepositoryService {
       throw new Error(`[id]{${id}} does not exist.`)
     }
   }
-  public static async removeModule(id: number) {
-    const result = await Module.destroy({ where: { id } })
-    await Interface.destroy({ where: { moduleId: id } })
-    await Property.destroy({ where: { moduleId: id } })
+  public static async removeModule(id: number, transaction?: Transaction) {
+    const result = await Module.destroy({ where: { id }, transaction })
+    await Interface.destroy({ where: { moduleId: id }, transaction })
+    await Property.destroy({ where: { moduleId: id }, transaction })
     return result
   }
   public static async updateProperties(itfId: number, properties: Property[], itf: Interface, userId) {
@@ -412,5 +418,33 @@ export default class RepositoryService {
       })
     }
     return result
+  }
+  public static async addInterfaceToTarget(
+    sourceId: number,
+    sourceName: string,
+    sourceModuleDesc: string,
+    targetRepoId: number,
+    targetModuleName: string,
+    targetVersionId?: number
+  ) {
+    const versionId = targetVersionId ? +targetVersionId : null
+    const targetVersion = await RepositoryVersionService.findByPk(versionId, targetRepoId)
+
+    let targetModule = await Module.findOne({
+      where: {
+        repositoryId: targetRepoId,
+        name: targetModuleName,
+        versionId: targetVersion.id,
+      },
+    })
+    if (!targetModule) {
+      targetModule = await Module.create({
+        repositoryId: targetRepoId,
+        description: sourceModuleDesc || '',
+        name: targetModuleName,
+        versionId: targetVersion.id,
+      })
+    }
+    return await RepositoryService.moveInterface(MoveOp.COPY, sourceId, targetRepoId, targetModule.id, sourceName)
   }
 }

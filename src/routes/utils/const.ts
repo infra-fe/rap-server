@@ -42,3 +42,40 @@ export enum BODY_OPTION {
   RAW = 'RAW',
   BINARY = 'BINARY',
 }
+
+export enum IMPORT_SOURCE {
+  YAPI = 'YAPI',
+  SWAGGER = 'SWAGGER'
+}
+
+export enum FREQUENCY_TYPE {
+  ThreeHours = 'ThreeHours',
+  HalfDay = 'HalfDay',
+  OneDay = 'OneDay'
+}
+
+export function getCronExpression(frequency: FREQUENCY_TYPE) {
+  const date = new Date()
+  switch (frequency) {
+    case FREQUENCY_TYPE.ThreeHours:
+      return `${date.getSeconds()} ${date.getMinutes()} */3 * * *`
+    case FREQUENCY_TYPE.HalfDay:
+      return `${date.getSeconds()} ${date.getMinutes()} */12 * * *`
+    case FREQUENCY_TYPE.OneDay:
+      return `${date.getSeconds()} ${date.getMinutes()} ${date.getHours()} * * *`
+    default:
+      return `${date.getSeconds()} ${date.getMinutes()} ${date.getHours()} * * *`
+  }
+}
+
+
+export enum IMPORT_STATUS {
+  SUCCESS = 'SUCCESS',
+  PROCESSING = 'PROCESSING',
+  FAIL = 'FAIL',
+}
+
+export enum IMPORT_TRIGGER_TYPE {
+  MANUAL = 'MANUAL',
+  AUTO = 'AUTO',
+}

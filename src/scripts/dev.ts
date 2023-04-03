@@ -6,7 +6,7 @@ const start = () => {
   const port = config.serve.port
   const url = `http://localhost:${port}` // /api.html
   const open = false
-  console.log('----------------------------------------')
+  console.log('---------------------------------------')
   app.listen(port, () => {
     console.log(`rap2-delos is running as ${url}`)
     if (!open) {return}

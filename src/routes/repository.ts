@@ -23,6 +23,9 @@ import RepositoryVersionService from '../service/repositoryVersion'
 import { IPager } from '../types'
 import { COMMON_ERROR_RES, ENTITY_TYPE } from './utils/const'
 import { initModule, initRepository } from './utils/helper'
+import { deleteImportByRepositoryId } from '../service/autoImport'
+import sequelize from '../models/sequelize'
+import { deleteImportJobs } from '../service/autoImportQueue'
 
 router.get('/app/get', async (ctx, next) => {
   const data: any = {}
@@ -435,13 +438,24 @@ router.get('/repository/remove', isLoggedIn, async (ctx, next) => {
     ctx.body = Consts.COMMON_ERROR_RES.ACCESS_DENY
     return
   }
-  const result = await Repository.destroy({ where: { id } })
-  await Module.destroy({ where: { repositoryId: id } })
-  await Interface.destroy({ where: { repositoryId: id } })
-  await Property.destroy({ where: { repositoryId: id } })
-  ctx.body = {
-    data: result,
+  const t = await sequelize.transaction()
+  try {
+    const result = await Repository.destroy({ where: { id }, transaction: t })
+    await Module.destroy({ where: { repositoryId: id }, transaction: t })
+    await Interface.destroy({ where: { repositoryId: id }, transaction: t })
+    await Property.destroy({ where: { repositoryId: id }, transaction: t })
+    const importIdList = await deleteImportByRepositoryId(id, t)
+    deleteImportJobs(importIdList)
+    ctx.body = {
+      data: result,
+    }
+    await t.commit()
+
+  } catch(e) {
+    await t.rollback()
+    throw e
   }
+
   return next()
 }, async (ctx) => {
   if (ctx.body.data === 0) { return }
@@ -781,6 +795,17 @@ router.post('/interface/create', isLoggedIn, async (ctx, next) => {
     const { id, isTmpl, ...updateParams } = body
     // Interface from template, its isTmpl will be set to false
     await Interface.update({ ...updateParams, isTmpl: false }, { where: { id: createdId } })
+    created = await Interface.findByPk(createdId)
+  } else if (body.sourceId > 0 && body.targetRepoId > 0) {
+    const createdId = await RepositoryService.addInterfaceToTarget(
+      +body.sourceId,
+      body.sourceName,
+      body.sourceModuleDesc,
+      +body.targetRepoId,
+      body.targetModuleName,
+      body.targetVersionId
+    )
+    await Interface.update({ creatorId }, { where: { id: createdId } })
     created = await Interface.findByPk(createdId)
   } else {
     created = await Interface.create(body)

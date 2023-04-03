@@ -95,7 +95,7 @@ export default class Property extends Model<Property> {
   /** 是否为必填选项 */
     required: boolean
 
-    memory?: boolean
+  memory?: boolean
 
 }
 

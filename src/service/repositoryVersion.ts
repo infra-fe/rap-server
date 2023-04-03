@@ -10,6 +10,10 @@ import { Module, RepositoryVersion } from '../models'
 import { MoveOp } from '../models/bo/interface'
 import Pagination from '../routes/utils/pagination'
 import RepositoryService from './repository'
+import AutoImport from '../models/bo/autoImport'
+import sequelize from '../models/sequelize'
+import { deleteImportByVersionId } from './autoImport'
+import { deleteImportJobs } from './autoImportQueue'
 
 export interface ListParams {
   start: number
@@ -61,17 +65,32 @@ export default class RepositoryVersionService {
       },
     })
     if (!masterVersion) {
-      masterVersion = await RepositoryVersion.create({
-        versionName: versionName || 'master',
-        isMaster: true,
-        repositoryId,
-      })
-      Module.update({ versionId: masterVersion.id }, {
-        where: {
+      const t = await sequelize.transaction()
+      try {
+        masterVersion = await RepositoryVersion.create({
+          versionName: versionName || 'master',
+          isMaster: true,
           repositoryId,
-          versionId: null,
-        },
-      })
+        })
+        await Module.update({ versionId: masterVersion.id }, {
+          where: {
+            repositoryId,
+            versionId: null,
+          },
+          transaction: t,
+        })
+        await AutoImport.update({ versionId: masterVersion.id }, {
+          where: {
+            versionId: null,
+            repositoryId,
+          },
+          transaction: t,
+        })
+        await t.commit()
+      } catch(e) {
+        await t.rollback()
+        throw e
+      }
     }
     return masterVersion
   }
@@ -161,7 +180,16 @@ export default class RepositoryVersionService {
           versionId,
         },
       })
-      await Promise.all(modules.map(mod => RepositoryService.removeModule(mod.id)))
+      const t = await sequelize.transaction()
+      try{
+        await Promise.all(modules.map(mod => RepositoryService.removeModule(mod.id, t)))
+        const importIdList = await deleteImportByVersionId(versionId, t)
+        deleteImportJobs(importIdList)
+        await t.commit()
+      }catch(e){
+        await t.rollback()
+        throw e
+      }
     }
   }
   public static async findByPk(versionId: null | number, repositoryId: number) {

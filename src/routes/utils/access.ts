@@ -30,7 +30,7 @@ export class AccessUtils {
       return true
     }
 
-    // 无 session 且无 toeken 时拒绝访问
+    // 无 session 且无 token 时拒绝访问
     if (!curUserId && !token) {
       return false
     }

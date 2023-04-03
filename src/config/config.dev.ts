@@ -30,6 +30,12 @@ const config: IConfigOptions = {
     },
   },
   redis: {},
+  queueRedis: {
+    host: process.env.QUEUE_REDIS_URL || 'localhost',
+    port: (process.env.QUEUE_REDIS_PORT && parseInt(process.env.REDIS_PORT, 10)) || 6379,
+    password: process.env.QUEUE_REDIS_PWD || undefined,
+    maxRetriesPerRequest: null,
+  },
   mail: {
     host: process.env.MAIL_HOST ?? 'smtp.aliyun.com',
     port: process.env.MAIL_PORT ?? 465,

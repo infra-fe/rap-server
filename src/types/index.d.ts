@@ -27,6 +27,7 @@ declare interface IConfigOptions {
   redis: any
   mail: SMTPTransport
   mailSender: string
+  queueRedis: any
 }
 
 declare interface IPager {

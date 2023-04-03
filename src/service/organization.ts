@@ -30,6 +30,27 @@ export default class OrganizationService {
     })
   }
 
+  public static async isOrganizationMember(userId: number, organizationId: number): Promise<boolean>{
+    const sql = `
+      SELECT COUNT(id) AS num FROM (
+        SELECT o.id, o.name
+        FROM Organizations o
+        WHERE ownerId = ${userId}
+        UNION
+        SELECT o.id, o.name
+        FROM Organizations o
+        JOIN organizations_members om ON o.id = om.organizationId
+        WHERE om.userId = ${userId}
+      ) as result
+      WHERE id = ${organizationId}
+    `
+    return new Promise(async resolve => {
+      seq.query(sql, { type: QueryTypes.SELECT }).then((result: any) => {
+        resolve(+result[0].num > 0)
+      })
+    })
+  }
+
   public static getAllOrganizationIdList(curUserId: number, pager: Pagination, query?: string): Promise<number[]> {
     if (query) {
       query = Utils.escapeSQL(query)

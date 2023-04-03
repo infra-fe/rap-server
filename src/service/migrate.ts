@@ -4,13 +4,13 @@ import * as rp from 'request-promise'
 import { Interface, Module, Property, QueryInclude, Repository, User } from '../models'
 import { SCOPES } from '../models/bo/property'
 import Tree from '../routes/utils/tree'
-// import { Op } from 'sequelize'
+import { Op } from 'sequelize'
 import * as _ from 'lodash'
 import { cloneDeep } from 'lodash'
 import * as md5 from 'md5'
 import * as Consts from '../routes/utils/const'
 import { SchemaObject } from '../types/openapi'
-import { removeSwaggerAllOf, SwaggerDataV2 } from '../utils/swaggerUtils'
+import { removeSwaggerAllOf, removeSwaggerRefs, SwaggerDataV2 } from '../utils/swaggerUtils'
 import MailService from './mail'
 import RedisService, { CACHE_KEY } from './redis'
 import RepositoryService from './repository'
@@ -121,6 +121,24 @@ let beansCache = {} // 参数构建时，暂存definitions中对象的解析结�
 let hitCacheCount = 0 // 命中缓存的次数
 let setCacheCount = 0 // 设置缓存的次数
 
+const parseNoTypeRef = (param, definitions, keyMap = new WeakMap()) => {
+  if (param.$ref && !param.type) {
+    const refName = param.$ref.split('#/definitions/')[1]
+    const ref = definitions?.[refName]
+    if (ref) {
+      if (keyMap.has(ref)) {
+        return param
+      } else {
+        keyMap.set(ref, true)
+      }
+      return parseNoTypeRef({
+        ..._.omit(param, '$ref'),
+        ...ref,
+      }, definitions, keyMap)
+    }
+  }
+  return param
+}
 /**
  * Swagger JSON 参数递归处理成数组
  * @param parameters 参数列表数组
@@ -134,9 +152,11 @@ let setCacheCount = 0 // 设置缓存的次数
  */
 const parse = (parameters, parent, parentName, depth, result, definitions, scope, apiInfo, keyMap = new WeakMap()) => {
   for (let key = 0, len = parameters.length; key < len; key++) {
+
     const param = parameters[key]
 
-    if (!param.$ref && !(param.items || {}).$ref) {
+    const withRef = param.$ref || param.items?.$ref || param.items?.[0]?.$ref
+    if (!withRef) {
       // 非对象或者数组的基础类型
       result.push({
         ...param,
@@ -146,21 +166,25 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
         id: `${parent}-${key}`,
       })
 
-      if (['object'].includes(param.type) && param.properties) {
-        const list = Object.entries(param.properties).map(([key, property]) => ({
+      const currProperties = param.properties || param.items?.properties
+      const required = param._required || param.items?.required || param.required
+      if (['object', 'array'].includes(param.type) && currProperties) {
+        const list = Object.entries(currProperties).map(([key, property]) => ({
           name: key,
           parentName: param.name,
           depth: depth + 1,
           ...property as object,
           in: param.in, // response 无所谓，不使用但是request 使用
-          required: (param.required || []).indexOf(key) >= 0,
+          required: (Array.isArray(required) ? required : []).indexOf(key) >= 0,
+          _required: (property as object)['required'],
         }))
         parse(list, `${parent}-${key}`, param.name, depth + 1, result, definitions, scope, apiInfo, keyMap)
       }
     } else {
       // 数组类型或者对象类型
       let paramType = ''
-      if (param.items) {
+      const paramItems = Array.isArray(param.items) ? param.items[0] : param.items
+      if (paramItems) {
         paramType = 'array'
       } else {
         paramType = 'object'
@@ -176,14 +200,14 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
       })
 
       let refName
-      if (!param.items) {
+      if (!paramItems) {
         // 对象
         refName = param.$ref.split('#/definitions/')[1]
         delete result.find(item => item.id === `${parent}-${key}`)['$ref']
       }
-      if (param.items) {
+      if (paramItems) {
         // 数组
-        refName = param.items.$ref.split('#/definitions/')[1]
+        refName = paramItems.$ref.split('#/definitions/')[1]
         delete result.find(item => item.id === `${parent}-${key}`).items
       }
 
@@ -206,7 +230,7 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
       }
 
       const ref = definitions[refName]
-      const { properties, items } = ref || {}
+      const { properties, items, type, $ref } = ref || {}
       if (items) {
         const parentParam = result.find(each => each.name === param.name && each.parent === parent)
         // 更新父级数据类型
@@ -236,7 +260,8 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
                 $ref: null,
                 type: 'object',
                 in: param.in,
-                required: (ref.required || []).indexOf(key) >= 0,
+                required: (ref._required || ref.required || []).indexOf(key) >= 0,
+                _required: properties[key].required,
                 description: `【递归父级属性】${properties[key].description || ''}`,
               })
             } else {
@@ -246,7 +271,8 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
                 depth: depth + 1,
                 ...properties[key],
                 in: param.in,
-                required: (ref.required || []).indexOf(key) >= 0,
+                required: (ref._required || ref.required || []).indexOf(key) >= 0,
+                _required: properties[key].required,
               })
             }
           } else if ((properties[key].items || {}).$ref) {
@@ -261,7 +287,8 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
                 items: null,
                 $ref: null,
                 in: param.in,
-                required: (ref.required || []).indexOf(key) >= 0,
+                required: (ref._required || ref.required || []).indexOf(key) >= 0,
+                _required: properties[key].required,
                 description: `【递归父级属性】${properties[key].description || ''}`,
               })
             } else {
@@ -271,7 +298,8 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
                 depth: depth + 1,
                 ...properties[key],
                 in: param.in,
-                required: (ref.required || []).indexOf(key) >= 0,
+                required: (ref._required || ref.required || []).indexOf(key) >= 0,
+                _required: properties[key].required,
               })
             }
           } else {
@@ -281,7 +309,8 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
               depth: depth + 1,
               ...properties[key],
               in: param.in, // response 无所谓，不使用但是request 使用
-              required: (ref.required || []).indexOf(key) >= 0,
+              required: (ref._required || ref.required || []).indexOf(key) >= 0,
+              _required: properties[key].required,
             })
           }
         }
@@ -297,6 +326,22 @@ const parse = (parameters, parent, parentName, depth, result, definitions, scope
           if (refDefinition.length > 0) {
             beansCache[refName] = refDefinition
             setCacheCount++
+          }
+        }
+      } else if (!['object', 'array'].includes(type)) {
+        const parentParam = result.find(each => each.name === param.name && each.parent === parent)
+        if (type) {
+          // 更新父级数据类型
+          Object.keys(ref).forEach(v => {
+            parentParam[v] = ref[v]
+          })
+        } else if ($ref) {
+          const newRef = parseNoTypeRef(ref, definitions)
+          Object.keys(newRef).forEach(v => {
+            parentParam[v] = newRef[v]
+          })
+          if (['object', 'array'].includes(newRef?.type)) {
+            parse([newRef], parent, parentName, depth, result, definitions, scope, apiInfo, keyMap)
           }
         }
       }
@@ -665,7 +710,8 @@ export default class MigrateService {
             name: key,
             ...properties[key],
             in: 'body',
-            required: (ref.required || []).indexOf(key) >= 0,
+            required: (ref._required || ref.required || []).indexOf(key) >= 0,
+            _required: properties[key].required,
           })
         }
 
@@ -716,7 +762,7 @@ export default class MigrateService {
     if (!responseProperties && $responseRef) {
       const refName = $responseRef.split('#/definitions/')[1]
       responseProperties = definitions[refName]?.properties
-      responseRequired = definitions[refName]?.required
+      responseRequired = definitions[refName]?._required || definitions[refName]?.required
     }
 
     if (!responseProperties) {
@@ -759,6 +805,7 @@ export default class MigrateService {
           ...properties[key],
           in: 'body',
           required: key === 'success' ? true : (responseRequired || []).indexOf(key) >= 0,
+          _required: properties[key].required,
           default: key === 'success' ? true : properties[key].default || false,
           description: properties[key].description || description,
         })
@@ -854,6 +901,23 @@ export default class MigrateService {
     const { paths = {} } = swagger
     const pathTag: SwaggerTag[] = []
 
+    // 获取当前仓库的已有模块列表
+    const repositoryModules = await Repository.findByPk(repositoryId, {
+      attributes: { exclude: [] },
+      include: [{ ...QueryInclude.RepositoryHierarchy, where: { versionId } }],
+      order: [
+        [{ model: Module, as: 'modules' }, 'priority', 'asc'],
+        [
+          { model: Module, as: 'modules' },
+          { model: Interface, as: 'interfaces' },
+          'priority',
+          'asc',
+        ],
+      ],
+    })
+
+    const repository: Partial<Repository> = repositoryModules.toJSON()
+
     // 获取所有的TAG: 处理ROOT TAG中没有的情况
     for (const action in paths) {
       if (!paths.hasOwnProperty(action)) { continue }
@@ -882,26 +946,6 @@ export default class MigrateService {
     for (const tag of tags) {
       if (checkSwaggerResult.length > 0) { break }
 
-      let repository: Partial<Repository>
-      const [repositoryModules] = await Promise.all([
-        Repository.findByPk(repositoryId, {
-          attributes: { exclude: [] },
-          include: [{ ...QueryInclude.RepositoryHierarchy, where: { versionId } }],
-          order: [
-            [{ model: Module, as: 'modules' }, 'priority', 'asc'],
-            [
-              { model: Module, as: 'modules' },
-              { model: Interface, as: 'interfaces' },
-              'priority',
-              'asc',
-            ],
-          ],
-        }),
-      ])
-      repository = {
-        ...repositoryModules.toJSON(),
-      }
-
       const findIndex = repository.modules.findIndex(item => {
         return item.name === tag.name
       }) // 判断是否存在模块
@@ -915,6 +959,7 @@ export default class MigrateService {
           repositoryId: repositoryId,
           versionId,
         })
+        repository.modules.push(mod)
       } else {
         mod = repository.modules[findIndex]
       }
@@ -933,26 +978,6 @@ export default class MigrateService {
           const summary = apiObj.summary
 
           if (actionTags0 === tag.name) {
-            // 判断接口是否存在该模块中，如果不存在则创建接口，存在则更新接口信息
-            const [repositoryModules] = await Promise.all([
-              Repository.findByPk(repositoryId, {
-                attributes: { exclude: [] },
-                include: [QueryInclude.RepositoryHierarchy],
-                order: [
-                  [{ model: Module, as: 'modules' }, 'priority', 'asc'],
-                  [
-                    { model: Module, as: 'modules' },
-                    { model: Interface, as: 'interfaces' },
-                    'priority',
-                    'asc',
-                  ],
-                ],
-              }),
-            ])
-            repository = {
-              ...repositoryModules.toJSON(),
-            }
-
             const request = await this.swaggerToModelRequest(
               swagger,
               apiObj.parameters || [],
@@ -972,12 +997,16 @@ export default class MigrateService {
             //     item.interfaces.findIndex(it => (it.url || '') === url) >= 0
             //   ) // 已经存在接口
             // })
-
             // if (index < 0) {
             // 创建接口
             const itfUrl = `${url.replace('-test', '')}`
             let itf = await Interface.findOne({
-              where: { repositoryId, url: itfUrl, method: method.toUpperCase() },
+              where: {
+                repositoryId,
+                url: itfUrl,
+                method: method.toUpperCase(),
+                moduleId: { [Op.in]: repository.modules.map(v => v.id) },
+              },
             })
             // console.log('import:', repositoryId, itfUrl, method, !isCreate, itf?.lockerId, itf && !isCreate && !itf.lockerId)
             let oldProperties: Property[] = null
@@ -1044,7 +1073,7 @@ export default class MigrateService {
         swagger = spec
       }
       const isAuto = !curUserId
-      const hashValue = md5(JSON.stringify(swagger))
+      const hashValue = md5(`${JSON.stringify(swagger)}-${versionId}`)
       const { host = '', info = {}, schemes, basePath = '' } = swagger
       if (swagger.swagger === SWAGGER_VERSION[version]) {
         let repos
@@ -1125,6 +1154,10 @@ export default class MigrateService {
           hitCacheCount = 0
           setCacheCount = 0
 
+          // 移除swagger 2.0数据中的$ref
+          swagger = await removeSwaggerRefs(swagger as SwaggerDataV2, true) as SwaggerData
+
+          // 移除swagger 2.0数据中的allOf/oneOf/anyOf
           swagger = removeSwaggerAllOf(swagger as SwaggerDataV2) as SwaggerData
           // console.log('ldt-removeSwaggerAllOf:', JSON.stringify(swagger))
 
@@ -1443,7 +1476,7 @@ interface JsonData {
   /**
    * 要导入的目标 repo id 名
    */
-  id: number
+  id?: number
   name?: string
   basePath?: string
   description?: string

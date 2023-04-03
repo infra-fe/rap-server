@@ -41,6 +41,7 @@ specifiers:
   graceful: ^1.0.2
   https: ^1.0.0
   inquirer: ^8.2.2
+  ioredis: ^5.3.1
   is-md5: ^0.0.2
   js-beautify: ^1.14.3
   json-refs: ^3.0.15
@@ -107,6 +108,7 @@ dependencies:
   curl-to-postmanv2: 1.2.0
   graceful: 1.1.0
   https: 1.0.0
+  ioredis: 5.3.1
   is-md5: 0.0.2
   js-beautify: 1.14.7
   json-refs: 3.0.15
@@ -1584,7 +1586,7 @@ packages:
     dependencies:
       cron-parser: 4.7.1
       glob: 8.1.0
-      ioredis: 5.3.0
+      ioredis: 5.3.1
       lodash: 4.17.21
       msgpackr: 1.8.3
       semver: 7.3.8
@@ -2226,7 +2228,7 @@ packages:
     dev: false
 
   /drafter.js/2.6.7:
-    resolution: {integrity: sha512-B6/nqEr3B9N8B4eySiPVXnFvI9Fh62Xl6GBQVncoh1aDcnYxSME5S8nZEERd4LjSYLzZchqnEC0F4oaXhSRJtA==}
+    resolution: {integrity: sha1-WcQ6hYZSc0DLNb3cVBgFWfru8AE=}
     engines: {node: '>= 0.12'}
     dev: false
     optional: true
@@ -3780,8 +3782,8 @@ packages:
       - supports-color
     dev: false
 
-  /ioredis/5.3.0:
-    resolution: {integrity: sha512-Id9jKHhsILuIZpHc61QkagfVdUj2Rag5GzG1TGEvRNeM7dtTOjICgjC+tvqYxi//PuX2wjQ+Xjva2ONBuf92Pw==}
+  /ioredis/5.3.1:
+    resolution: {integrity: sha512-C+IBcMysM6v52pTLItYMeV4Hz7uriGtoJdz7SSBDX6u+zwSYGirLdQh3L7t/OItWITcw3gTFMjJReYUwS4zihg==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@ioredis/commands': 1.2.0
@@ -4584,7 +4586,7 @@ packages:
     dev: false
 
   /lodash.defaults/4.2.0:
-    resolution: {integrity: sha512-qjxPLHd3r5DnsdGacqOMU6pb/avJzdh9tFX2ymgoZE27BmjXrNy/y4LoaiTeAb+O3gL8AfpJGtqfX/ae2leYYQ==}
+    resolution: {integrity: sha1-0JF4cW/+pN3p5ft7N/bwgCJ0WAw=}
     dev: false
 
   /lodash.flatten/4.4.0:
@@ -4600,7 +4602,7 @@ packages:
     dev: false
 
   /lodash.isarguments/3.1.0:
-    resolution: {integrity: sha512-chi4NHZlZqZD18a0imDHnZPrDeBbTtVN7GXMwuGdRH9qotxAjYs3aVLKc7zNOG9eddR5Ksd8rvFEBc9SsggPpg==}
+    resolution: {integrity: sha1-L1c9hcaiQon/AGY7SRwdM4/zRYo=}
     dev: false
 
   /lodash.isequal/4.5.0:
@@ -5848,7 +5850,7 @@ packages:
     dev: false
 
   /raml-parser/0.8.18:
-    resolution: {integrity: sha512-WpKlKhxN7mXJ1Kf5/7f7+EMOsXNwjI4TbrY6TkbR+bzzdFMTjz8oqPJdDkr7gA+ow5vvzCfe16+tUhmSNnkcNQ==}
+    resolution: {integrity: sha1-CHM3UDT4uKHSDBDjFHtiebM0l6g=}
     hasBin: true
     requiresBuild: true
     dependencies:
@@ -5865,7 +5867,7 @@ packages:
     optional: true
 
   /raml-to-swagger/1.1.0:
-    resolution: {integrity: sha512-aDsSklVNG1xOAXenzmX8+Pfq+G95esQNx5WQo/qa/AtVPm3KsM6zI6hw3oYE6whocfnogwpnbJSFbTrADwpZIg==}
+    resolution: {integrity: sha1-jVMLSN3WOE7arEvQUVJv6wXwl2Y=}
     hasBin: true
     requiresBuild: true
     dependencies:
@@ -6006,7 +6008,7 @@ packages:
     engines: {node: '>=4'}
 
   /redis-parser/3.0.0:
-    resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
+    resolution: {integrity: sha1-tm2CjNyv5rS4pCin3vTGvKwxyLQ=}
     engines: {node: '>=4'}
     dependencies:
       redis-errors: 1.2.0

@@ -27,6 +27,8 @@ services:
       # redis config
       - REDIS_URL=redis
       - REDIS_PORT=6379
+      - QUEUE_REDIS_URL=redis
+      - QUEUE_REDIS_PORT=6379
 
       # production / development
       - NODE_ENV=production
@@ -42,7 +44,7 @@ services:
       - mysql
 
   redis:
-    image: redis:4
+    image: redis:5
 
   # disable this if you have your own mysql
   mysql:

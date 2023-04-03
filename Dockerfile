@@ -3,6 +3,8 @@ FROM node:16-alpine AS builder
 
 WORKDIR /app
 
+RUN npm install -g pnpm
+
 # cache dependencies
 COPY package.json ./
 
@@ -10,11 +12,11 @@ COPY package.json ./
 #RUN npm config set registry https://registry.npm.taobao.org/
 
 # instal dependencies
-RUN yarn --frozen-lockfile
+RUN pnpm i
 
 # build
 COPY . ./
-RUN yarn build
+RUN pnpm run build
 
 # RUNNING
 FROM node:lts-alpine
